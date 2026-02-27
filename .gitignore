@@ -1,0 +1,5 @@
+# Build results 
+build/
+
+# Clang Tidy build commands
+compile_commands.json
