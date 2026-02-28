@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void parse_header(FILE* file, unsigned char* base, unsigned char* side);
+static void parse_board_cells(FILE* file, hpp_board* board);
+
 hpp_board* parse_file(char* file_name)
 {
     FILE* file = fopen(file_name, "rb");
@@ -20,8 +23,29 @@ hpp_board* parse_file(char* file_name)
     unsigned char base = 0;
     unsigned char side = 0;
 
-    if (fread(&base, sizeof(unsigned char), 1, file) != 1 ||
-        fread(&side, sizeof(unsigned char), 1, file) != 1)
+    parse_header(file, &base, &side);
+
+    // This board will act as a starting point,
+    // any created board must match filled elements with this one
+    hpp_board* board = create_board(side);
+
+    parse_board_cells(file, board);
+
+    fclose(file);
+    return board;
+}
+
+/**
+ * Read and validate the board header (base and side values)
+ *
+ * @param file File pointer to read from
+ * @param base Output parameter for the base value
+ * @param side Output parameter for the side value
+ */
+static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
+{
+    if (fread(base, sizeof(unsigned char), 1, file) != 1 ||
+        fread(side, sizeof(unsigned char), 1, file) != 1)
     {
         LOG_ERROR("Failed to read header bytes.");
         fclose(file);
@@ -29,31 +53,38 @@ hpp_board* parse_file(char* file_name)
     }
     else
     {
-        LOG_INFO("Read value %hhu and %hhu", base, side);
+        LOG_INFO("Read value %hhu and %hhu", *base, *side);
     }
 
-    if (base == 0)
+    if (*base == 0)
     {
-        LOG_ERROR("Invalid value for size: %hhu", base);
+        LOG_ERROR("Invalid value for size: %hhu", *base);
         fclose(file);
         exit(EXIT_FAILURE);
     }
 
-    if (side == 0)
+    if (*side == 0)
     {
-        LOG_ERROR("Invalid value for side count: %hhu", side);
+        LOG_ERROR("Invalid value for side count: %hhu", *side);
         fclose(file);
         exit(EXIT_FAILURE);
     }
+}
 
-    hpp_board* board = create_board(side);
-
-    // This board will act as a starting point,
-    // any created board must match filled elements with this one,
+/**
+ * Read board cells from file and populate the board
+ *
+ * @param file File pointer to read from
+ * @param board Board structure to populate
+ */
+static void parse_board_cells(FILE* file, hpp_board* board)
+{
+    size_t side   = board->size;
     size_t linear = 0;
-    /*
-        size_t word_index = 0;
 
+    /*
+        Alternative bulk approach using 64-bit words:
+        size_t word_index = 0;
         uint64_t current_word = 0;
         unsigned bit_pos = 0;
     */
@@ -77,7 +108,7 @@ hpp_board* parse_file(char* file_name)
             set_bit_linear(board->fixed, bit, linear);
 
             /*
-            // Or brnaching update of 64 bits:
+            // Or branching update of 64 bits:
             current_word |= (uint64_t)(value > 0) << bit_pos;
             bit_pos++;
 
@@ -86,8 +117,10 @@ hpp_board* parse_file(char* file_name)
                 bulk_set_mask(board->masks, current_word, word_index);
                 current_word = 0;
                 bit_pos = 0;
+                word_index++;
             }
             */
+
             linear++;
         }
     }
@@ -99,6 +132,4 @@ hpp_board* parse_file(char* file_name)
         bulk_set_mask(board->masks, current_word, word_index);
     }
     */
-    fclose(file);
-    return board;
 }

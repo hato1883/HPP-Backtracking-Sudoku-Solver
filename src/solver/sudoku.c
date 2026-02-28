@@ -1,7 +1,7 @@
 
 #include "solver/sudoku.h"
 
-#include "utils/colors.h"
+#include "utils/color.h"
 #include "utils/logger.h"
 
 #include <assert.h>
@@ -15,7 +15,7 @@ hpp_board* create_board(size_t size)
 
     hpp_board* new_board = (hpp_board*)malloc(sizeof(hpp_board) * 1);
     new_board->size      = size;
-    new_board->masks     = (size * size + CELLS_PER_VECTOR - 1) / CELLS_PER_VECTOR;
+    new_board->masks     = (size * size + MASK_WORD_STORAGE - 1) / MASK_WORD_STORAGE;
 
     // Setup bitmask
     new_board->fixed = (hpp_bitmask*)calloc(new_board->masks, sizeof(hpp_bitmask));

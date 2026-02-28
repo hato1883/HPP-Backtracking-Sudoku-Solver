@@ -1,6 +1,6 @@
 #include "utils/logger.h"
 
-#include "utils/colors.h"
+#include "utils/color.h"
 
 #include <stdarg.h>
 #include <stdio.h>
