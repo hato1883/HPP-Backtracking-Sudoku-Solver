@@ -50,6 +50,13 @@ hpp_board* parse_file(char* file_name)
 
     // This board will act as a starting point,
     // any created board must match filled elements with this one,
+    size_t linear = 0;
+    /*
+        size_t word_index = 0;
+
+        uint64_t current_word = 0;
+        unsigned bit_pos = 0;
+    */
 
     for (size_t row = 0; row < side; row++)
     {
@@ -64,9 +71,34 @@ hpp_board* parse_file(char* file_name)
             }
 
             board->cells[row][col] = value;
+
+            // Branchless update of single bit
+            hpp_bitmask bit = (uint64_t)(value > 0);
+            set_bit_linear(board->fixed, bit, linear);
+
+            /*
+            // Or brnaching update of 64 bits:
+            current_word |= (uint64_t)(value > 0) << bit_pos;
+            bit_pos++;
+
+            if (bit_pos == 64)
+            {
+                bulk_set_mask(board->masks, current_word, word_index);
+                current_word = 0;
+                bit_pos = 0;
+            }
+            */
+            linear++;
         }
     }
 
+    /*
+    // Flush remainder
+    if (bit_pos != 0)
+    {
+        bulk_set_mask(board->masks, current_word, word_index);
+    }
+    */
     fclose(file);
     return board;
 }

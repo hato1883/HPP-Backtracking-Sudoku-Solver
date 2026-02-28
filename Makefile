@@ -7,13 +7,13 @@ CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L
 LDFLAGS = -lm
 
 ifeq ($(DEBUG),1)
-    CFLAGS += -g -O0 \
+    CFLAGS += -g -O0 -DLOG_VERBOSITY=1 -DLOG_LEVEL=0\
              -fsanitize=address,undefined \
              -fno-omit-frame-pointer
     LDFLAGS += -fsanitize=address,undefined
 	BUILD_TYPE = debug
 else
-    CFLAGS +=  -O3 -march=native -flto 
+    CFLAGS +=  -DLOG_VERBOSITY=0 -DLOG_LEVEL=2 -O3 -march=native -flto 
     LDFLAGS += -flto
 	BUILD_TYPE = release
 endif
@@ -29,6 +29,14 @@ TARGET = $(TARGET_DIR)/bin/sudoku-solver
 COMPILE_DB = compile_commands.json
 
 all: $(TARGET)
+
+release:
+	@$(MAKE) --no-print-directory DEBUG=0
+	./build/release/bin/sudoku-solver
+
+debug:
+	@$(MAKE) --no-print-directory DEBUG=1
+	./build/debug/bin/sudoku-solver
 
 format:
 	clang-format -i $(shell find src include -name "*.c" -o -name "*.h")

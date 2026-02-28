@@ -7,11 +7,13 @@
 
 int main()
 {
-    logger_set_level(LOG_LEVEL_INFO);
+    // logger_set_level(LOG_LEVEL_DEBUG);
+    // logger_set_verbosity(0);
     hpp_timer timer;
     timer_start(&timer);
 
     hpp_board* initial_board = parse_file("board.dat");
+    LOG_INFO("Received board:");
     print_board(initial_board);
 
     destroy_board(&initial_board);
