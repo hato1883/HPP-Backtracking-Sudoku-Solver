@@ -1,12 +1,19 @@
 Checks: >
   -*,
-  clang-analyzer-*,
   bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   performance-*,
-  portability-*,
   readability-*,
-  modernize-*,
-  misc-*
+  portability-*,
+  -cppcoreguidelines-*,
+  -modernize-*,
+  -hicpp-*,
+  -google-*,
+  -fuchsia-*,
+  -llvm-*,
+  -objc-*
 
 WarningsAsErrors: >
   bugprone-*,

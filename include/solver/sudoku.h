@@ -1,12 +1,19 @@
-#ifndef __SUDOKU_H__
+#ifndef SOLVER_SUDOKU_H
+#define SOLVER_SUDOKU_H
 
+#include <stdint.h>
 #include <stdlib.h>
 
+enum
+{
+    SUDOKU_EMPTY = 0,
+};
+
 /**
- * Representation of a Number in the sudoku board
+ * Representation of a cell in the sudoku board
  * [0, 255]
  */
-typedef unsigned char Number;
+typedef uint8_t hpp_cell;
 
 /**
  * Representation of a sudoku board
@@ -15,22 +22,28 @@ typedef unsigned char Number;
  */
 typedef struct Board
 {
-    size_t   size;
-    Number** board;
-} Board;
+    size_t     size;
+    hpp_cell** cells;
+} hpp_board;
 
 /**
  * Creates a new empty board with garabage values of size: size x size
- * 
+ *
  * @param size the size of the board in 1 dimennsion, all boards are square.
  * @return A pointer to newly created board allocated on the heap
  */
-Board* create_board(size_t size);
+hpp_board* create_board(size_t size);
 
 /**
  * Destroys a heap allocated board and set the pointer to NULL
- * @param board pointer to the board you want to destroy.
+ * @param board pointer to the board refrence you want to destroy.
  */
-void destroy_board(Board **board);
+void destroy_board(hpp_board** board);
+
+/**
+ * Prints the board to stdout
+ * @param board the board refrence you want to print
+ */
+void print_board(hpp_board* board);
 
 #endif

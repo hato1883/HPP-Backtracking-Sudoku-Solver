@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 #
 # This code is taken from https://stackoverflow.com/questions/45471152/how-to-create-a-sudoku-puzzle-in-python
 # Original author Alain T. 
