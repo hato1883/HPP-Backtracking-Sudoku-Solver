@@ -3,10 +3,12 @@
 #include "solver/cost.h"
 #include "solver/incremental_cost.h"
 #include "solver/progress.h"
+#include "solver/sudoku.h"
 #include "utils/logger.h"
 #include "utils/timing.h"
 
 #include <limits.h>
+#include <omp.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +50,12 @@ typedef struct SolverSession
 
     // Moves log file (for cycle detection)
     FILE* moves_log;
+
+    // Random restart tracking
+    uint64_t  last_improvement_iteration;
+    uint64_t  restart_threshold; // Iterations without improvement before restart
+    uint32_t  restart_count;
+    uint8_t** best_board_state; // Save best board configuration found
 } hpp_solver_session;
 
 typedef enum ProbeStrategy
@@ -59,6 +67,13 @@ typedef enum ProbeStrategy
 /**
  * Forward declarations of all private helper functions.
  */
+
+// Random restart helpers
+static uint8_t** allocate_board_state(size_t size);
+static void      free_board_state(uint8_t** state, size_t size);
+static void      save_board_state(uint8_t** dest, hpp_board* src);
+static void      restore_board_state(hpp_board* dest, uint8_t** src);
+static void      perform_restart(hpp_solver_session* session);
 
 // Move array capacity management
 static int ensure_move_capacity(hpp_move** moves, size_t* capacity, size_t move_count);
@@ -171,6 +186,11 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
         .tabu_tenure       = (uint32_t)(board->size * 2), // Increased tenure to prevent cycling
         .incremental_cost  = NULL,
         .moves_log         = NULL,
+        .last_improvement_iteration = 0,
+        .restart_threshold          = (uint64_t)(board->size * board->size *
+                                        10), // Restart after N iterations without improvement
+        .restart_count              = 0,
+        .best_board_state           = NULL,
     };
 
     // Allocate tabu list
@@ -190,7 +210,20 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
         return SOLVER_ERROR;
     }
 
-    LOG_INFO("Tabu search initialized with tenure=%u", session.tabu_tenure);
+    // Allocate best board state storage
+    session.best_board_state = allocate_board_state(board->size);
+    if (session.best_board_state == NULL)
+    {
+        LOG_ERROR("Failed to allocate best board state");
+        free(session.tabu_list);
+        incremental_cost_destroy(&session.incremental_cost);
+        return SOLVER_ERROR;
+    }
+    save_board_state(session.best_board_state, board);
+
+    LOG_INFO("Tabu search initialized with tenure=%u, restart_threshold=%lu",
+             session.tabu_tenure,
+             session.restart_threshold);
 
     if (board->block_size == 0)
     {
@@ -238,11 +271,18 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
     {
         solver_step(&session);
 
+        // Check if we should restart (stuck in local minimum)
+        if (session.iteration - session.last_improvement_iteration >= session.restart_threshold)
+        {
+            perform_restart(&session);
+        }
+
         if (emit_progress(&session) != 0)
         {
             LOG_WARN("Solver aborted by callback");
             free(session.tabu_list);
             incremental_cost_destroy(&session.incremental_cost);
+            free_board_state(session.best_board_state, board->size);
             if (session.moves_log != NULL)
                 fclose(session.moves_log);
             return SOLVER_ABORTED;
@@ -251,11 +291,26 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
 
     timer_stop(&session.timer);
 
+    // Restore best solution found
+    if (session.current_cost.violations > 0 &&
+        session.best_cost.violations < session.current_cost.violations)
+    {
+        restore_board_state(board, session.best_board_state);
+        session.current_cost = session.best_cost;
+        LOG_INFO("Restored best solution found (violations=%zu)", session.best_cost.violations);
+    }
+
     free(session.tabu_list);
     incremental_cost_destroy(&session.incremental_cost);
+    free_board_state(session.best_board_state, board->size);
 
     if (session.moves_log != NULL)
         fclose(session.moves_log);
+
+    if (session.restart_count > 0)
+    {
+        LOG_INFO("Total restarts performed: %u", session.restart_count);
+    }
 
     // SANITY CHECK: Verify actual board cost matches tracked cost
     hpp_cost actual_cost = compute_cost(board);
@@ -285,6 +340,110 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
 /*==============================================================================
  * PRIVATE HELPER IMPLEMENTATIONS
  *==============================================================================*/
+
+/**
+ * Allocate a 2D array to store board state.
+ */
+static uint8_t** allocate_board_state(size_t size)
+{
+    uint8_t** state = (uint8_t**)malloc(size * sizeof(uint8_t*));
+    if (state == NULL)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        state[i] = (uint8_t*)malloc(size * sizeof(uint8_t));
+        if (state[i] == NULL)
+        {
+            // Clean up already allocated rows
+            for (size_t j = 0; j < i; ++j)
+            {
+                free(state[j]);
+            }
+            free(state);
+            return NULL;
+        }
+    }
+
+    return state;
+}
+
+/**
+ * Free board state storage.
+ */
+static void free_board_state(uint8_t** state, size_t size)
+{
+    if (state == NULL)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        free(state[i]);
+    }
+    free(state);
+}
+
+/**
+ * Save current board configuration to state storage.
+ */
+static void save_board_state(uint8_t** dest, hpp_board* src)
+{
+    for (size_t row = 0; row < src->size; ++row)
+    {
+        for (size_t col = 0; col < src->size; ++col)
+        {
+            dest[row][col] = src->cells[row][col];
+        }
+    }
+}
+
+/**
+ * Restore board configuration from state storage.
+ */
+static void restore_board_state(hpp_board* dest, uint8_t** src)
+{
+    for (size_t row = 0; row < dest->size; ++row)
+    {
+        for (size_t col = 0; col < dest->size; ++col)
+        {
+            dest->cells[row][col] = src[row][col];
+        }
+    }
+}
+
+/**
+ * Perform a random restart: re-randomize the board and clear tabu list.
+ */
+static void perform_restart(hpp_solver_session* session)
+{
+    session->restart_count++;
+
+    LOG_INFO("Random restart #%u at iteration %lu (best_cost=%zu, current_cost=%zu)",
+             session->restart_count,
+             session->iteration,
+             session->best_cost.violations,
+             session->current_cost.violations);
+
+    // Re-randomize the board
+    randomize_board(session->board);
+
+    // Recompute cost after randomization
+    session->current_cost = compute_cost(session->board);
+
+    // Clear tabu list to allow exploration of new region
+    session->tabu_count = 0;
+
+    // Rebuild incremental cost table
+    incremental_cost_destroy(&session->incremental_cost);
+    session->incremental_cost = incremental_cost_init(session->board);
+
+    // Reset improvement tracking
+    session->last_improvement_iteration = session->iteration;
+}
 
 /**
  * Check if a move is in the tabu list.
@@ -687,63 +846,96 @@ static int probe_best_improving(hpp_solver_session* session,
     int      found_improving_move = 0;
     int      found_any_move       = 0;
     hpp_cost best_cost_found      = {.violations = UINT_MAX, .depth_score = 1e9};
+    hpp_move best_move_found      = {0};
 
-    for (size_t index = 0; index < move_count; ++index)
+// Parallelize the search for the best move across all threads
+#pragma omp parallel
     {
-        const hpp_move* candidate_move = &moves[index];
+        // Thread-local best move and cost
+        hpp_cost thread_best_cost = {.violations = UINT_MAX, .depth_score = 1e9};
+        hpp_move thread_best_move = {0};
+        int      thread_found_any = 0;
 
-        // Check tabu list (with aspiration criteria)
-        int is_move_tabu = is_tabu(session, candidate_move);
-        if (is_move_tabu && found_any_move &&
-            best_cost_found.violations >= session->best_cost.violations)
+#pragma omp for schedule(dynamic, 256) nowait
+        for (size_t index = 0; index < move_count; ++index)
         {
-            // Skip tabu moves unless they beat the global best cost
-            continue;
+            const hpp_move* candidate_move = &moves[index];
+
+            // Check tabu list (with aspiration criteria)
+            // Note: is_tabu() is read-only, so thread-safe
+            int is_move_tabu = is_tabu(session, candidate_move);
+            if (is_move_tabu && thread_found_any &&
+                thread_best_cost.violations >= session->best_cost.violations)
+            {
+                // Skip tabu moves unless they beat the global best cost
+                continue;
+            }
+
+            // Compute cost delta without modifying board
+            // Note: incremental_cost_delta functions are read-only, so thread-safe
+            int32_t delta = 0;
+            if (candidate_move->kind == MOVE_ASSIGN)
+            {
+                delta = incremental_cost_delta_assign(session->incremental_cost,
+                                                      session->board,
+                                                      candidate_move->payload.assign.row,
+                                                      candidate_move->payload.assign.col,
+                                                      candidate_move->payload.assign.new_value);
+            }
+            else if (candidate_move->kind == MOVE_SWAP)
+            {
+                delta = incremental_cost_delta_swap(session->incremental_cost,
+                                                    session->board,
+                                                    candidate_move->payload.swap.row1,
+                                                    candidate_move->payload.swap.col1,
+                                                    candidate_move->payload.swap.row2,
+                                                    candidate_move->payload.swap.col2);
+            }
+
+            // Compute candidate cost
+            hpp_cost candidate_cost;
+            candidate_cost.violations =
+                (uint32_t)((int32_t)session->current_cost.violations + delta);
+            // Approximate depth_score (simplified: scale by violation change)
+            candidate_cost.depth_score =
+                session->current_cost.depth_score +
+                (double)delta * (session->current_cost.depth_score /
+                                 (double)(session->current_cost.violations + 1));
+
+            // First move or better than thread's best found?
+            if (!thread_found_any || cost_compare(&candidate_cost, &thread_best_cost) < 0)
+            {
+                thread_best_cost = candidate_cost;
+                thread_best_move = *candidate_move;
+                thread_found_any = 1;
+            }
         }
 
-        // Compute cost delta without modifying board
-        int32_t delta = 0;
-        if (candidate_move->kind == MOVE_ASSIGN)
+// Combine thread-local results into global best
+#pragma omp critical
         {
-            delta = incremental_cost_delta_assign(session->incremental_cost,
-                                                  session->board,
-                                                  candidate_move->payload.assign.row,
-                                                  candidate_move->payload.assign.col,
-                                                  candidate_move->payload.assign.new_value);
-        }
-        else if (candidate_move->kind == MOVE_SWAP)
-        {
-            delta = incremental_cost_delta_swap(session->incremental_cost,
-                                                session->board,
-                                                candidate_move->payload.swap.row1,
-                                                candidate_move->payload.swap.col1,
-                                                candidate_move->payload.swap.row2,
-                                                candidate_move->payload.swap.col2);
-        }
-
-        // Compute candidate cost
-        hpp_cost candidate_cost;
-        candidate_cost.violations = (uint32_t)((int32_t)session->current_cost.violations + delta);
-        // Approximate depth_score (simplified: scale by violation change)
-        candidate_cost.depth_score =
-            session->current_cost.depth_score +
-            (double)delta * (session->current_cost.depth_score /
-                             (double)(session->current_cost.violations + 1));
-
-        // First move or better than best found?
-        if (!found_any_move || cost_compare(&candidate_cost, &best_cost_found) < 0)
-        {
-            best_cost_found = candidate_cost;
-            *best_cost      = candidate_cost;
-            *best_move      = *candidate_move;
-            found_any_move  = 1;
+            if (thread_found_any)
+            {
+                if (!found_any_move || cost_compare(&thread_best_cost, &best_cost_found) < 0)
+                {
+                    best_cost_found = thread_best_cost;
+                    best_move_found = thread_best_move;
+                    found_any_move  = 1;
+                }
+            }
         }
     }
 
     // Check if best move is improving vs current cost
-    if (found_any_move && cost_compare(&best_cost_found, &session->current_cost) < 0)
+    if (found_any_move)
     {
-        found_improving_move = 1;
+        *best_cost = best_cost_found;
+        *best_move = best_move_found;
+
+        if (cost_compare(&best_cost_found, &session->current_cost) < 0)
+        {
+            found_improving_move = 1;
+        }
     }
 
     return found_improving_move;
@@ -1032,10 +1224,16 @@ static void solver_step(hpp_solver_session* session)
         // Add move to tabu list
         add_tabu(session, &best_move);
 
-        // Track global best cost
+        // Track global best cost and save best board state
         if (best_cost_in_iteration.violations < session->best_cost.violations)
         {
             session->best_cost = best_cost_in_iteration;
+            save_board_state(session->best_board_state, session->board);
+            session->last_improvement_iteration = session->iteration;
+
+            LOG_DEBUG("New best cost found: %zu violations at iteration %lu",
+                      session->best_cost.violations,
+                      session->iteration);
         }
     }
 

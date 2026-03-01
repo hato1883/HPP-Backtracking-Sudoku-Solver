@@ -3,11 +3,11 @@ CC = clang
 DEBUG ?= 0
 
 INCLUDES = -Iinclude
-CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L
-LDFLAGS = -lm
+CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L -fopenmp
+LDFLAGS = -lm -fopenmp
 
 ifeq ($(DEBUG),1)
-    CFLAGS += -g -O0 -DLOG_VERBOSITY=1 -DLOG_LEVEL=0\
+    CFLAGS += -g -O0 -DLOG_VERBOSITY=0 -DLOG_LEVEL=1\
              -fsanitize=address,undefined \
              -fno-omit-frame-pointer
     LDFLAGS += -fsanitize=address,undefined
