@@ -5,19 +5,18 @@
 #include <stdlib.h>
 
 /**
- * Representation of the cost of a move
+ * Representation of the cost of a move with hierarchical depth weighting.
  *
- * A move with a low cost should be better
- * than a move with a higher cost
+ * Primary: total violations (size_t, 0 = valid solution)
+ * Secondary: depth_score (double, weighted by column/block position)
+ *   - Penalizes violations in leftmost columns more heavily
+ *   - Penalizes violations in top-left blocks more heavily
+ *   - Lower depth_score is better when violations are equal
  */
 typedef struct Cost
 {
-    // a board can hold 1 byte of data per cell, [0, 255]
-    // this gives us aproximately 255 row collissions
-    // 255 column collisions, and lastly sqrt(255) block collisions,
-    // this is roughly 1 040 400 collisions in the absolute worst case
-    // that number fits in a 32 bit number, or 4 bytes (normal int)
-    uint32_t violations;
+    size_t violations;  // Total violations count
+    double depth_score; // Weighted depth-based score (lower is better)
 } hpp_cost;
 
 #endif

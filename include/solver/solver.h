@@ -29,6 +29,9 @@ typedef struct SolverConfig
 
     /** Progress reporting sink (NULL = no reporting, zero overhead). */
     hpp_progress_sink_config progress_sink;
+
+    /** File path to log all moves; NULL = no logging. Useful for cycle detection. */
+    const char* moves_log_file;
 } hpp_solver_config;
 
 /**

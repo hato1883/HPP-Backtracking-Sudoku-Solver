@@ -6,6 +6,9 @@
 
 #include <stdint.h>
 
+// Forward declaration
+typedef struct Board hpp_board;
+
 /**
  * Opaque handle to a TUI consumer instance.
  *
@@ -55,7 +58,10 @@ hpp_progress_sink_config tui_consumer_sink(hpp_tui_consumer* consumer);
  *
  * @param consumer the TUI consumer handle.
  * @param final_progress final progress state (may be NULL).
+ * @param final_board the solved board to display (or NULL to skip board display).
  */
-void tui_consumer_finalize(hpp_tui_consumer* consumer, const hpp_solver_progress* final_progress);
+void tui_consumer_finalize(hpp_tui_consumer*          consumer,
+                           const hpp_solver_progress* final_progress,
+                           const hpp_board*           final_board);
 
 #endif

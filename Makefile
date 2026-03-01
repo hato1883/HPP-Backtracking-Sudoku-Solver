@@ -32,11 +32,15 @@ all: $(TARGET)
 
 release:
 	@$(MAKE) --no-print-directory DEBUG=0
-	./build/release/bin/sudoku-solver
 
 debug:
 	@$(MAKE) --no-print-directory DEBUG=1
-	./build/debug/bin/sudoku-solver
+
+run-debug: debug
+	./build/debug/bin/sudoku-solver --ui
+
+run-release: release
+	./build/release/bin/sudoku-solver 
 
 format:
 	clang-format -i $(shell find src include -name "*.c" -o -name "*.h")

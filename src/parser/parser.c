@@ -29,7 +29,18 @@ hpp_board* parse_file(char* file_name)
     // any created board must match filled elements with this one
     hpp_board* board = create_board(side);
 
+    if ((size_t)base * (size_t)base != board->size)
+    {
+        LOG_ERROR("Inconsistent board header: base=%hhu side=%hhu", base, side);
+        fclose(file);
+        destroy_board(&board);
+        exit(EXIT_FAILURE);
+    }
+
     parse_board_cells(file, board);
+
+    // Persist block size from file header
+    board->block_size = (size_t)base;
 
     fclose(file);
     return board;
@@ -132,4 +143,74 @@ static void parse_board_cells(FILE* file, hpp_board* board)
         bulk_set_mask(board->masks, current_word, word_index);
     }
     */
+}
+
+/**
+ * Write a solved board to a binary file.
+ * Format: block_size (1 byte) + side (1 byte) + newline + board bytes
+ *
+ * @param filename output file path
+ * @param board the solved board to write
+ * @return 0 on success, -1 on failure
+ */
+int write_solution(const char* filename, const hpp_board* board)
+{
+    if (filename == NULL || board == NULL)
+    {
+        LOG_ERROR("Invalid arguments to write_solution");
+        return -1;
+    }
+
+    FILE* file = fopen(filename, "wb");
+    if (file == NULL)
+    {
+        LOG_ERROR("Failed to open file for writing: \"%s\"", filename);
+        return -1;
+    }
+
+    // Write block_size
+    unsigned char block_size = (unsigned char)board->block_size;
+    if (fwrite(&block_size, sizeof(unsigned char), 1, file) != 1)
+    {
+        LOG_ERROR("Failed to write block_size to solution file");
+        fclose(file);
+        return -1;
+    }
+
+    // Write side
+    unsigned char side = (unsigned char)board->size;
+    if (fwrite(&side, sizeof(unsigned char), 1, file) != 1)
+    {
+        LOG_ERROR("Failed to write side to solution file");
+        fclose(file);
+        return -1;
+    }
+
+    // Write newline
+    unsigned char newline = '\n';
+    if (fwrite(&newline, sizeof(unsigned char), 1, file) != 1)
+    {
+        LOG_ERROR("Failed to write newline to solution file");
+        fclose(file);
+        return -1;
+    }
+
+    // Write board cells
+    for (size_t row = 0; row < board->size; ++row)
+    {
+        for (size_t col = 0; col < board->size; ++col)
+        {
+            unsigned char value = board->cells[row][col];
+            if (fwrite(&value, sizeof(unsigned char), 1, file) != 1)
+            {
+                LOG_ERROR("Failed to write board cell at (%zu, %zu)", row, col);
+                fclose(file);
+                return -1;
+            }
+        }
+    }
+
+    fclose(file);
+    LOG_INFO("Solution written to: %s", filename);
+    return 0;
 }

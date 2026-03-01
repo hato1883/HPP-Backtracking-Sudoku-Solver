@@ -15,10 +15,12 @@
  * @param argc argument count.
  * @param argv argument values.
  * @param enable_ui output flag for --ui mode.
+ * @param moves_log_file output pointer for --moves-log FILE mode.
  */
-static void parse_args(int argc, char* argv[], bool* enable_ui)
+static void parse_args(int argc, char* argv[], bool* enable_ui, const char** moves_log_file)
 {
-    *enable_ui = false;
+    *enable_ui      = false;
+    *moves_log_file = NULL;
 
     for (int i = 1; i < argc; i++)
     {
@@ -26,13 +28,18 @@ static void parse_args(int argc, char* argv[], bool* enable_ui)
         {
             *enable_ui = true;
         }
+        else if (strcmp(argv[i], "--moves-log") == 0 && i + 1 < argc)
+        {
+            *moves_log_file = argv[++i];
+        }
     }
 }
 
 int main(int argc, char* argv[])
 {
-    bool enable_ui = false;
-    parse_args(argc, argv, &enable_ui);
+    bool        enable_ui      = false;
+    const char* moves_log_file = NULL;
+    parse_args(argc, argv, &enable_ui, &moves_log_file);
 
     // logger_set_level(LOG_LEVEL_DEBUG);
     // logger_set_verbosity(0);
@@ -51,11 +58,19 @@ int main(int argc, char* argv[])
     LOG_INFO("Received board:");
     print_board(initial_board);
 
+    // Randomize unfixed cells to create a starting board state for the solver
+    LOG_INFO("Randomizing unfixed cells");
+    randomize_board(initial_board);
+
+    LOG_INFO("Board after randomization:");
+    print_board(initial_board);
+
     // Set up solver configuration
-    const int         update_rate   = 100;
+    const int         update_rate   = 1;
     hpp_solver_config solver_config = {
         .max_iterations = 0, // No limit (0 = unlimited)
         .progress_sink  = {.callback = NULL, .userdata = NULL, .progress_every_n = update_rate},
+        .moves_log_file = moves_log_file,
     };
 
     // Set up TUI consumer if requested
@@ -81,7 +96,7 @@ int main(int argc, char* argv[])
     // Finalize TUI if running
     if (tui != NULL)
     {
-        tui_consumer_finalize(tui, NULL);
+        tui_consumer_finalize(tui, NULL, initial_board);
         tui_consumer_destroy(&tui);
     }
     else
@@ -89,6 +104,16 @@ int main(int argc, char* argv[])
         // Headless mode: print final board
         LOG_INFO("Final board:");
         print_board(initial_board);
+    }
+
+    // Write solution if successful
+    if (status == SOLVER_SUCCESS)
+    {
+        LOG_INFO("Writing solution to answer.dat");
+        if (write_solution("answer.dat", initial_board) != 0)
+        {
+            LOG_WARN("Failed to write solution file");
+        }
     }
 
     // Clean up

@@ -7,6 +7,7 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -30,6 +31,9 @@ typedef struct TUIConsumer
 
     /** Signal for render thread to stop. */
     bool should_stop;
+
+    /** Track if render thread has been joined. */
+    bool render_thread_joined;
 
     /** Render frequency (ms). */
     uint32_t render_interval_ms;
@@ -60,6 +64,62 @@ static int tui_consumer_callback(const hpp_solver_progress* progress, void* user
     return 0; // Continue solving
 }
 
+static void print_move_info(const hpp_move* move)
+{
+    // Check if move is empty (no move applied in this iteration)
+    if (move->kind == MOVE_ASSIGN && move->payload.assign.row == 0 &&
+        move->payload.assign.col == 0 && move->payload.assign.old_value == 0 &&
+        move->payload.assign.new_value == 0)
+    {
+        printf("  Move: (no improving move found)\033[K\n");
+    }
+    else if (move->kind == MOVE_ASSIGN)
+    {
+        printf("  Move: ASSIGN [row=%u, col=%u] old_value=%u → new_value=%u\033[K\n",
+               move->payload.assign.row,
+               move->payload.assign.col,
+               move->payload.assign.old_value,
+               move->payload.assign.new_value);
+    }
+    else if (move->kind == MOVE_SWAP)
+    {
+        printf("  Move: SWAP [(%u,%u) ↔ (%u,%u)]\033[K\n",
+               move->payload.swap.row1,
+               move->payload.swap.col1,
+               move->payload.swap.row2,
+               move->payload.swap.col2);
+    }
+}
+
+static void print_progress_placeholder(void)
+{
+    // Print 7 blank lines to reserve space for progress display
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    printf("\n");
+    fflush(stdout);
+}
+
+static void print_progress_info(const hpp_tui_consumer* consumer)
+{
+    // Move cursor up 7 lines to overwrite previous output
+    printf("\033[7A");
+
+    printf("=== SOLVER PROGRESS ===\033[K\n");
+    printf("  Iteration: %lu\033[K\n", consumer->latest_progress.iteration);
+    printf("  Elapsed:   %.2lf s\033[K\n", consumer->latest_progress.elapsed_seconds);
+    printf("  Current Cost (violations): %u\033[K\n", consumer->latest_progress.cost.violations);
+    printf("  Best Cost (violations):    %u\033[K\n",
+           consumer->latest_progress.best_cost.violations);
+    print_move_info(&consumer->latest_progress.latest_move);
+    printf("======================\033[K\n");
+    fflush(stdout);
+}
+
 /**
  * Render thread: periodically updates TUI display.
  * Reads from consumer's mirrored board and latest progress.
@@ -78,9 +138,12 @@ static void* render_thread_fn(void* arg)
 
     while (!consumer->should_stop)
     {
-        // TODO: render consumer->board to terminal
-        // TODO: display consumer->latest_progress stats
         nanosleep(&sleep_time, NULL);
+
+        // Display progress info
+        pthread_mutex_lock(&consumer->progress_mutex);
+        print_progress_info(consumer);
+        pthread_mutex_unlock(&consumer->progress_mutex);
     }
 
     LOG_DEBUG("TUI render thread exiting");
@@ -109,10 +172,14 @@ hpp_tui_consumer* tui_consumer_create(size_t size)
 
     memset(&consumer->latest_progress, 0, sizeof(consumer->latest_progress));
     pthread_mutex_init(&consumer->progress_mutex, NULL);
-    consumer->should_stop        = false;
-    const int fps                = 20; // 20 Hz render rate
-    const int fps_timer          = TIMER_MS_IN_S / fps;
-    consumer->render_interval_ms = fps_timer;
+    consumer->should_stop          = false;
+    consumer->render_thread_joined = false;
+    const int fps                  = 20; // 20 Hz render rate
+    const int fps_timer            = TIMER_MS_IN_S / fps;
+    consumer->render_interval_ms   = fps_timer;
+
+    // Print initial placeholder to reserve display space
+    print_progress_placeholder();
 
     // Start render thread
     if (pthread_create(&consumer->render_thread, NULL, render_thread_fn, consumer) != 0)
@@ -136,8 +203,12 @@ void tui_consumer_destroy(hpp_tui_consumer** consumer_ptr)
 
     hpp_tui_consumer* consumer = *consumer_ptr;
 
-    consumer->should_stop = true;
-    pthread_join(consumer->render_thread, NULL);
+    // Only join render thread if not already joined in finalize
+    if (!consumer->render_thread_joined)
+    {
+        consumer->should_stop = true;
+        pthread_join(consumer->render_thread, NULL);
+    }
 
     destroy_board(&consumer->board);
     pthread_mutex_destroy(&consumer->progress_mutex);
@@ -150,7 +221,7 @@ void tui_consumer_destroy(hpp_tui_consumer** consumer_ptr)
 
 hpp_progress_sink_config tui_consumer_sink(hpp_tui_consumer* consumer)
 {
-    const int                update_rate = 100;
+    const int                update_rate = 1;
     hpp_progress_sink_config sink        = {
                .callback         = tui_consumer_callback,
                .userdata         = consumer,
@@ -159,12 +230,19 @@ hpp_progress_sink_config tui_consumer_sink(hpp_tui_consumer* consumer)
     return sink;
 }
 
-void tui_consumer_finalize(hpp_tui_consumer* consumer, const hpp_solver_progress* final_progress)
+void tui_consumer_finalize(hpp_tui_consumer*          consumer,
+                           const hpp_solver_progress* final_progress,
+                           const hpp_board*           final_board)
 {
     if (consumer == NULL)
     {
         return;
     }
+
+    // Stop render thread first to prevent it from overwriting output
+    consumer->should_stop = true;
+    pthread_join(consumer->render_thread, NULL);
+    consumer->render_thread_joined = true;
 
     if (final_progress != NULL)
     {
@@ -173,7 +251,26 @@ void tui_consumer_finalize(hpp_tui_consumer* consumer, const hpp_solver_progress
         pthread_mutex_unlock(&consumer->progress_mutex);
     }
 
-    // TODO: display final board/result, maybe wait for user input (ESC key)
-    LOG_INFO("Solver finished; final board:");
-    print_board(consumer->board);
+    // Display final result (now safe from race conditions)
+    printf("\n╔════════════════════════════════════════╗\n");
+    printf("║     SOLVER FINISHED - FINAL RESULT     ║\n");
+    printf("╚════════════════════════════════════════╝\n\n");
+
+    pthread_mutex_lock(&consumer->progress_mutex);
+    printf("Final Statistics:\n");
+    printf("  Total Iterations: %lu\n", consumer->latest_progress.iteration);
+    printf("  Total Time:       %.4lf s\n", consumer->latest_progress.elapsed_seconds);
+    printf("  Final Cost:       %u violations\n", consumer->latest_progress.cost.violations);
+    printf("  Best Cost:        %u violations\n", consumer->latest_progress.best_cost.violations);
+    printf("\nFinal Board:\n");
+    pthread_mutex_unlock(&consumer->progress_mutex);
+
+    if (final_board != NULL)
+    {
+        print_board(final_board);
+    }
+    else
+    {
+        printf("(Board not available)\n");
+    }
 }
