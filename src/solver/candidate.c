@@ -191,6 +191,219 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
     return count;
 }
 
+static bool hpp_candidate_refresh_candidates_and_find_naked_single(hpp_candidate_state* state,
+                                                                   size_t*              cell_index,
+                                                                   size_t*              value)
+{
+    *cell_index = SIZE_MAX;
+    *value      = BOARD_CELL_EMPTY;
+
+    for (size_t idx = 0; idx < state->board->cell_count; ++idx)
+    {
+        if (state->board->cells[idx] != BOARD_CELL_EMPTY)
+        {
+            continue;
+        }
+
+        size_t       single_value    = BOARD_CELL_EMPTY;
+        const size_t candidate_count = hpp_candidate_compute_cell(state, idx, &single_value);
+        if (candidate_count == 0)
+        {
+            return false;
+        }
+
+        if (candidate_count == 1 && *cell_index == SIZE_MAX)
+        {
+            *cell_index = idx;
+            *value      = single_value;
+        }
+    }
+
+    return true;
+}
+
+static bool hpp_candidate_find_hidden_single_in_rows(const hpp_candidate_state* state,
+                                                     size_t*                    cell_index,
+                                                     size_t*                    value)
+{
+    const size_t side_length = state->board->side_length;
+    for (size_t row = 0; row < side_length; ++row)
+    {
+        const uint8_t* row_bv = state->constraints->row_bitvectors[row];
+        for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+        {
+            if (hpp_candidate_bit_test(row_bv, candidate_value))
+            {
+                continue;
+            }
+
+            size_t candidate_cell  = SIZE_MAX;
+            size_t candidate_count = 0;
+            for (size_t col = 0; col < side_length; ++col)
+            {
+                const size_t idx = (row * side_length) + col;
+                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
+                {
+                    continue;
+                }
+
+                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
+                                            candidate_value))
+                {
+                    continue;
+                }
+
+                candidate_cell = idx;
+                candidate_count++;
+                if (candidate_count > 1)
+                {
+                    break;
+                }
+            }
+
+            if (candidate_count == 1)
+            {
+                *cell_index = candidate_cell;
+                *value      = candidate_value;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool hpp_candidate_find_hidden_single_in_cols(const hpp_candidate_state* state,
+                                                     size_t*                    cell_index,
+                                                     size_t*                    value)
+{
+    const size_t side_length = state->board->side_length;
+    for (size_t col = 0; col < side_length; ++col)
+    {
+        const uint8_t* col_bv = state->constraints->col_bitvectors[col];
+        for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+        {
+            if (hpp_candidate_bit_test(col_bv, candidate_value))
+            {
+                continue;
+            }
+
+            size_t candidate_cell  = SIZE_MAX;
+            size_t candidate_count = 0;
+            for (size_t row = 0; row < side_length; ++row)
+            {
+                const size_t idx = (row * side_length) + col;
+                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
+                {
+                    continue;
+                }
+
+                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
+                                            candidate_value))
+                {
+                    continue;
+                }
+
+                candidate_cell = idx;
+                candidate_count++;
+                if (candidate_count > 1)
+                {
+                    break;
+                }
+            }
+
+            if (candidate_count == 1)
+            {
+                *cell_index = candidate_cell;
+                *value      = candidate_value;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool hpp_candidate_find_hidden_single_in_boxes(const hpp_candidate_state* state,
+                                                      size_t*                    cell_index,
+                                                      size_t*                    value)
+{
+    const size_t side_length  = state->board->side_length;
+    const size_t block_length = state->board->block_length;
+    const size_t box_side     = side_length / block_length;
+
+    for (size_t box_row = 0; box_row < box_side; ++box_row)
+    {
+        for (size_t box_col = 0; box_col < box_side; ++box_col)
+        {
+            const size_t   box_idx = (box_row * box_side) + box_col;
+            const uint8_t* box_bv  = state->constraints->box_bitvectors[box_idx];
+            for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+            {
+                if (hpp_candidate_bit_test(box_bv, candidate_value))
+                {
+                    continue;
+                }
+
+                size_t candidate_cell  = SIZE_MAX;
+                size_t candidate_count = 0;
+
+                const size_t row_start = box_row * block_length;
+                const size_t col_start = box_col * block_length;
+                for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
+                {
+                    for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
+                    {
+                        const size_t row = row_start + row_offset;
+                        const size_t col = col_start + col_offset;
+                        const size_t idx = (row * side_length) + col;
+                        if (state->board->cells[idx] != BOARD_CELL_EMPTY)
+                        {
+                            continue;
+                        }
+
+                        if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
+                                                    candidate_value))
+                        {
+                            continue;
+                        }
+
+                        candidate_cell = idx;
+                        candidate_count++;
+                        if (candidate_count > 1)
+                        {
+                            break;
+                        }
+                    }
+
+                    if (candidate_count > 1)
+                    {
+                        break;
+                    }
+                }
+
+                if (candidate_count == 1)
+                {
+                    *cell_index = candidate_cell;
+                    *value      = candidate_value;
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool hpp_candidate_find_hidden_single(const hpp_candidate_state* state,
+                                             size_t*                    cell_index,
+                                             size_t*                    value)
+{
+    return hpp_candidate_find_hidden_single_in_rows(state, cell_index, value) ||
+           hpp_candidate_find_hidden_single_in_cols(state, cell_index, value) ||
+           hpp_candidate_find_hidden_single_in_boxes(state, cell_index, value);
+}
+
 hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_state* state,
                                                               const hpp_board*     source)
 {
@@ -334,40 +547,40 @@ bool hpp_candidate_state_assign(hpp_candidate_state*  state,
 
 bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state, hpp_candidate_budget* budget)
 {
-    bool changed = true;
-    while (changed)
+    while (true)
     {
-        changed = false;
-
-        for (size_t cell_index = 0; cell_index < state->board->cell_count; ++cell_index)
+        size_t naked_single_cell  = SIZE_MAX;
+        size_t naked_single_value = BOARD_CELL_EMPTY;
+        if (!hpp_candidate_refresh_candidates_and_find_naked_single(
+                state, &naked_single_cell, &naked_single_value))
         {
-            if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
-            {
-                continue;
-            }
+            return false;
+        }
 
-            size_t       single_value = BOARD_CELL_EMPTY;
-            const size_t candidate_count =
-                hpp_candidate_compute_cell(state, cell_index, &single_value);
-            if (candidate_count == 0)
+        if (naked_single_cell != SIZE_MAX)
+        {
+            if (!hpp_candidate_state_assign(state, naked_single_cell, naked_single_value, budget))
             {
                 return false;
             }
 
-            if (candidate_count == 1)
-            {
-                if (!hpp_candidate_state_assign(state, cell_index, single_value, budget))
-                {
-                    return false;
-                }
-
-                changed = true;
-                break;
-            }
+            continue;
         }
-    }
 
-    return true;
+        size_t hidden_single_cell  = SIZE_MAX;
+        size_t hidden_single_value = BOARD_CELL_EMPTY;
+        if (hpp_candidate_find_hidden_single(state, &hidden_single_cell, &hidden_single_value))
+        {
+            if (!hpp_candidate_state_assign(state, hidden_single_cell, hidden_single_value, budget))
+            {
+                return false;
+            }
+
+            continue;
+        }
+
+        return true;
+    }
 }
 
 hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state*  state,

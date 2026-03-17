@@ -1,0 +1,1216 @@
+{
+  "metadata": {
+    "timestamp": "2026-03-17T17:12:03.900255",
+    "commit": "efdfe0d",
+    "tag": "v1.2.0",
+    "total_tests": 48,
+    "invalid_policy": "abort",
+    "last_updated": "2026-03-17T17:34:48.348853",
+    "completed_tests": 45
+  },
+  "benchmarks": {
+    "board_2x2_medium_4_1.dat": {
+      "board_info": {
+        "block_size": 2,
+        "size": 4,
+        "hints": 12,
+        "empty_cells": 4
+      },
+      "statistics": {
+        "mean_ns": 40451.55,
+        "std_ns": 10194.714665091495,
+        "min_ns": 32000.0,
+        "count": 20
+      },
+      "runs": [
+        43301,
+        41659,
+        39043,
+        52188,
+        69922,
+        51417,
+        57909,
+        33282,
+        33142,
+        41118,
+        32000,
+        39595,
+        32381,
+        33252,
+        34164,
+        32421,
+        32471,
+        38933,
+        38312,
+        32521
+      ],
+      "status": "SUCCESS"
+    },
+    "board_2x2_veryhard_8_1.dat": {
+      "board_info": {
+        "block_size": 2,
+        "size": 4,
+        "hints": 8,
+        "empty_cells": 8
+      },
+      "statistics": {
+        "mean_ns": 35884.75,
+        "std_ns": 4546.97404151492,
+        "min_ns": 31359.0,
+        "count": 20
+      },
+      "runs": [
+        33683,
+        32070,
+        39655,
+        32220,
+        32310,
+        39374,
+        33483,
+        32922,
+        46817,
+        40025,
+        32010,
+        31359,
+        42129,
+        41858,
+        32290,
+        33232,
+        32211,
+        39725,
+        37420,
+        32902
+      ],
+      "status": "SUCCESS"
+    },
+    "board_2x2_veryhard_11_1.dat": {
+      "board_info": {
+        "block_size": 2,
+        "size": 4,
+        "hints": 5,
+        "empty_cells": 11
+      },
+      "statistics": {
+        "mean_ns": 39036.3,
+        "std_ns": 5423.542259640397,
+        "min_ns": 33603.0,
+        "count": 20
+      },
+      "runs": [
+        45916,
+        41307,
+        40777,
+        43452,
+        41477,
+        44213,
+        46207,
+        41578,
+        34415,
+        34575,
+        34234,
+        34054,
+        42400,
+        33774,
+        34485,
+        34685,
+        34615,
+        33743,
+        51216,
+        33603
+      ],
+      "status": "SUCCESS"
+    },
+    "board_3x3_medium_20_1.dat": {
+      "board_info": {
+        "block_size": 3,
+        "size": 9,
+        "hints": 61,
+        "empty_cells": 20
+      },
+      "statistics": {
+        "mean_ns": 38519.85,
+        "std_ns": 3830.615386523905,
+        "min_ns": 34134.0,
+        "count": 20
+      },
+      "runs": [
+        44383,
+        42500,
+        42920,
+        34615,
+        34665,
+        37520,
+        42049,
+        35196,
+        34886,
+        35557,
+        35397,
+        35396,
+        34134,
+        34986,
+        35316,
+        40376,
+        42340,
+        42770,
+        42420,
+        42971
+      ],
+      "status": "SUCCESS"
+    },
+    "board_3x3_veryhard_40_1.dat": {
+      "board_info": {
+        "block_size": 3,
+        "size": 9,
+        "hints": 41,
+        "empty_cells": 40
+      },
+      "statistics": {
+        "mean_ns": 44400.05263157895,
+        "std_ns": 3183.3439873065035,
+        "min_ns": 42289.0,
+        "count": 19
+      },
+      "runs": [
+        64531,
+        42670,
+        42680,
+        43782,
+        43342,
+        43331,
+        43682,
+        42830,
+        42831,
+        52478,
+        44463,
+        43441,
+        44173,
+        43060,
+        42951,
+        53961,
+        43091,
+        42289,
+        43712,
+        44834
+      ],
+      "status": "SUCCESS"
+    },
+    "board_3x3_veryhard_56_1.dat": {
+      "board_info": {
+        "block_size": 3,
+        "size": 9,
+        "hints": 25,
+        "empty_cells": 56
+      },
+      "statistics": {
+        "mean_ns": 134001.3,
+        "std_ns": 19770.33650140906,
+        "min_ns": 114204.0,
+        "count": 20
+      },
+      "runs": [
+        162084,
+        117851,
+        168276,
+        171301,
+        156323,
+        150903,
+        118642,
+        118863,
+        145673,
+        114204,
+        144501,
+        117600,
+        119584,
+        115667,
+        122150,
+        115898,
+        138129,
+        119745,
+        117039,
+        145593
+      ],
+      "status": "SUCCESS"
+    },
+    "board_3x3_veryhard_56_2.dat": {
+      "board_info": {
+        "block_size": 3,
+        "size": 9,
+        "hints": 25,
+        "empty_cells": 56
+      },
+      "statistics": {
+        "mean_ns": 153005.35,
+        "std_ns": 20006.97570526472,
+        "min_ns": 130154.0,
+        "count": 20
+      },
+      "runs": [
+        179818,
+        141606,
+        176050,
+        174016,
+        131216,
+        134432,
+        131407,
+        130154,
+        175038,
+        135364,
+        162244,
+        161523,
+        135283,
+        132218,
+        162995,
+        166011,
+        162675,
+        191469,
+        138399,
+        138189
+      ],
+      "status": "SUCCESS"
+    },
+    "board_4x4_medium_64_1.dat": {
+      "board_info": {
+        "block_size": 4,
+        "size": 16,
+        "hints": 192,
+        "empty_cells": 64
+      },
+      "statistics": {
+        "mean_ns": 60707.4,
+        "std_ns": 6817.640666141886,
+        "min_ns": 52088.0,
+        "count": 20
+      },
+      "runs": [
+        63839,
+        54261,
+        56666,
+        66896,
+        58490,
+        66184,
+        73939,
+        53640,
+        52088,
+        66344,
+        64711,
+        66365,
+        53100,
+        69070,
+        52699,
+        67316,
+        63960,
+        53240,
+        57949,
+        53391
+      ],
+      "status": "SUCCESS"
+    },
+    "board_4x4_veryhard_128_1.dat": {
+      "board_info": {
+        "block_size": 4,
+        "size": 16,
+        "hints": 128,
+        "empty_cells": 128
+      },
+      "statistics": {
+        "mean_ns": 289156.2,
+        "std_ns": 37553.817058218,
+        "min_ns": 244338.0,
+        "count": 20
+      },
+      "runs": [
+        313417,
+        331101,
+        248787,
+        267361,
+        388699,
+        308188,
+        252874,
+        259646,
+        245070,
+        312486,
+        323397,
+        286658,
+        244338,
+        307907,
+        314911,
+        296937,
+        248206,
+        274735,
+        256280,
+        302126
+      ],
+      "status": "SUCCESS"
+    },
+    "board_4x4_veryhard_179_1.dat": {
+      "board_info": {
+        "block_size": 4,
+        "size": 16,
+        "hints": 77,
+        "empty_cells": 179
+      },
+      "statistics": {
+        "mean_ns": 186159882.55,
+        "std_ns": 2470338.351366457,
+        "min_ns": 181557745.0,
+        "count": 20
+      },
+      "runs": [
+        181985618,
+        186790127,
+        184546851,
+        188311811,
+        184462943,
+        188291704,
+        184749551,
+        189731183,
+        183846417,
+        188921444,
+        186175104,
+        183891421,
+        189028094,
+        185026820,
+        184161799,
+        188882251,
+        188438769,
+        181557745,
+        187959230,
+        186438769
+      ],
+      "status": "SUCCESS"
+    },
+    "board_4x4_veryhard_179_2.dat": {
+      "board_info": {
+        "block_size": 4,
+        "size": 16,
+        "hints": 77,
+        "empty_cells": 179
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_5x5_medium_156_1.dat": {
+      "board_info": {
+        "block_size": 5,
+        "size": 25,
+        "hints": 469,
+        "empty_cells": 156
+      },
+      "statistics": {
+        "mean_ns": 112409.35,
+        "std_ns": 21622.32518602012,
+        "min_ns": 80431.0,
+        "count": 20
+      },
+      "runs": [
+        128862,
+        166793,
+        125826,
+        148318,
+        100068,
+        101931,
+        128361,
+        127789,
+        96371,
+        124764,
+        107331,
+        98004,
+        99447,
+        84308,
+        102402,
+        100779,
+        80431,
+        97964,
+        100839,
+        127599
+      ],
+      "status": "SUCCESS"
+    },
+    "board_5x5_veryhard_312_1.dat": {
+      "board_info": {
+        "block_size": 5,
+        "size": 25,
+        "hints": 313,
+        "empty_cells": 312
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_5x5_veryhard_437_1.dat": {
+      "board_info": {
+        "block_size": 5,
+        "size": 25,
+        "hints": 188,
+        "empty_cells": 437
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_6x6_medium_324_1.dat": {
+      "board_info": {
+        "block_size": 6,
+        "size": 36,
+        "hints": 972,
+        "empty_cells": 324
+      },
+      "statistics": {
+        "mean_ns": 426364.65,
+        "std_ns": 75830.93319336322,
+        "min_ns": 291878.0,
+        "count": 20
+      },
+      "runs": [
+        483818,
+        302197,
+        471504,
+        470983,
+        377377,
+        468909,
+        357100,
+        530365,
+        474871,
+        483707,
+        482465,
+        488757,
+        359153,
+        486362,
+        497082,
+        456226,
+        299792,
+        377748,
+        291878,
+        366999
+      ],
+      "status": "SUCCESS"
+    },
+    "board_6x6_hard_518_1.dat": {
+      "board_info": {
+        "block_size": 6,
+        "size": 36,
+        "hints": 778,
+        "empty_cells": 518
+      },
+      "statistics": {
+        "mean_ns": 4173266.052631579,
+        "std_ns": 150755.4088539423,
+        "min_ns": 3942474.0,
+        "count": 19
+      },
+      "runs": [
+        4302889,
+        4398558,
+        4319099,
+        3968332,
+        4164270,
+        4060063,
+        4186531,
+        4071395,
+        4521970,
+        3942474,
+        4154831,
+        4085642,
+        4337814,
+        4169939,
+        5472773,
+        4025790,
+        4122411,
+        4115298,
+        4264988,
+        4079761
+      ],
+      "status": "SUCCESS"
+    },
+    "board_6x6_veryhard_777_1.dat": {
+      "board_info": {
+        "block_size": 6,
+        "size": 36,
+        "hints": 519,
+        "empty_cells": 777
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_6x6_veryhard_972_1.dat": {
+      "board_info": {
+        "block_size": 6,
+        "size": 36,
+        "hints": 324,
+        "empty_cells": 972
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_7x7_medium_600_1.dat": {
+      "board_info": {
+        "block_size": 7,
+        "size": 49,
+        "hints": 1801,
+        "empty_cells": 600
+      },
+      "statistics": {
+        "mean_ns": 709061.85,
+        "std_ns": 116669.58898317347,
+        "min_ns": 532138.0,
+        "count": 20
+      },
+      "runs": [
+        568105,
+        791865,
+        726964,
+        564188,
+        897664,
+        731031,
+        706274,
+        575680,
+        706596,
+        704752,
+        630413,
+        894518,
+        626545,
+        890991,
+        712797,
+        905758,
+        678863,
+        636864,
+        532138,
+        699231
+      ],
+      "status": "SUCCESS"
+    },
+    "board_7x7_hard_960_1.dat": {
+      "board_info": {
+        "block_size": 7,
+        "size": 49,
+        "hints": 1441,
+        "empty_cells": 960
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_7x7_veryhard_1440_1.dat": {
+      "board_info": {
+        "block_size": 7,
+        "size": 49,
+        "hints": 961,
+        "empty_cells": 1440
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_8x8_medium_819_1.dat": {
+      "board_info": {
+        "block_size": 8,
+        "size": 64,
+        "hints": 3277,
+        "empty_cells": 819
+      },
+      "statistics": {
+        "mean_ns": 1351055.7,
+        "std_ns": 172014.3313530958,
+        "min_ns": 1152101.0,
+        "count": 20
+      },
+      "runs": [
+        1588950,
+        1152101,
+        1718523,
+        1161578,
+        1522555,
+        1224015,
+        1174122,
+        1248261,
+        1203537,
+        1533867,
+        1187707,
+        1329894,
+        1327970,
+        1570015,
+        1369559,
+        1338821,
+        1224396,
+        1575444,
+        1309686,
+        1260113
+      ],
+      "status": "SUCCESS"
+    },
+    "board_8x8_hard_1433_1.dat": {
+      "board_info": {
+        "block_size": 8,
+        "size": 64,
+        "hints": 2663,
+        "empty_cells": 1433
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_8x8_veryhard_2252_1.dat": {
+      "board_info": {
+        "block_size": 8,
+        "size": 64,
+        "hints": 1844,
+        "empty_cells": 2252
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_9x9_medium_1312_1.dat": {
+      "board_info": {
+        "block_size": 9,
+        "size": 81,
+        "hints": 5249,
+        "empty_cells": 1312
+      },
+      "statistics": {
+        "mean_ns": 2751712.75,
+        "std_ns": 270422.07834671205,
+        "min_ns": 2367320.0,
+        "count": 20
+      },
+      "runs": [
+        2989827,
+        2412464,
+        2448983,
+        2552477,
+        2488727,
+        3163332,
+        2816451,
+        2782057,
+        3018701,
+        2814197,
+        3081659,
+        3007941,
+        2367320,
+        3019463,
+        3065308,
+        2516278,
+        2504036,
+        2956033,
+        2469511,
+        2559490
+      ],
+      "status": "SUCCESS"
+    },
+    "board_9x9_hard_2296_1.dat": {
+      "board_info": {
+        "block_size": 9,
+        "size": 81,
+        "hints": 4265,
+        "empty_cells": 2296
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_9x9_veryhard_3608_1.dat": {
+      "board_info": {
+        "block_size": 9,
+        "size": 81,
+        "hints": 2953,
+        "empty_cells": 3608
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_10x10_medium_2000_1.dat": {
+      "board_info": {
+        "block_size": 10,
+        "size": 100,
+        "hints": 8000,
+        "empty_cells": 2000
+      },
+      "statistics": {
+        "mean_ns": 7445067.75,
+        "std_ns": 369958.91310734197,
+        "min_ns": 6960553.0,
+        "count": 20
+      },
+      "runs": [
+        7090437,
+        7377615,
+        7967241,
+        7595324,
+        7486580,
+        7148005,
+        7821067,
+        7329194,
+        7078444,
+        7243113,
+        7953485,
+        7251990,
+        7039792,
+        6960553,
+        7873856,
+        7785570,
+        8177756,
+        7372305,
+        7364120,
+        6984908
+      ],
+      "status": "SUCCESS"
+    },
+    "board_10x10_hard_3500_1.dat": {
+      "board_info": {
+        "block_size": 10,
+        "size": 100,
+        "hints": 6500,
+        "empty_cells": 3500
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_10x10_veryhard_5500_1.dat": {
+      "board_info": {
+        "block_size": 10,
+        "size": 100,
+        "hints": 4500,
+        "empty_cells": 5500
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_11x11_easy_2196_1.dat": {
+      "board_info": {
+        "block_size": 11,
+        "size": 121,
+        "hints": 12445,
+        "empty_cells": 2196
+      },
+      "statistics": {
+        "mean_ns": 7144042.65,
+        "std_ns": 367492.4710928425,
+        "min_ns": 6392919.0,
+        "count": 20
+      },
+      "runs": [
+        6958369,
+        7366986,
+        7173753,
+        6939374,
+        7242281,
+        6832493,
+        6840538,
+        7867103,
+        7276997,
+        6392919,
+        7073044,
+        7279341,
+        7288398,
+        7498622,
+        7038669,
+        7312393,
+        7643914,
+        7526855,
+        6850977,
+        6477827
+      ],
+      "status": "SUCCESS"
+    },
+    "board_11x11_hard_4392_1.dat": {
+      "board_info": {
+        "block_size": 11,
+        "size": 121,
+        "hints": 10249,
+        "empty_cells": 4392
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_11x11_veryhard_7320_1.dat": {
+      "board_info": {
+        "block_size": 11,
+        "size": 121,
+        "hints": 7321,
+        "empty_cells": 7320
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_12x12_easy_3110_1.dat": {
+      "board_info": {
+        "block_size": 12,
+        "size": 144,
+        "hints": 17626,
+        "empty_cells": 3110
+      },
+      "statistics": {
+        "mean_ns": 18748510.0,
+        "std_ns": 382947.9760000388,
+        "min_ns": 18118378.0,
+        "count": 20
+      },
+      "runs": [
+        18799975,
+        19292779,
+        18859447,
+        18937333,
+        18701150,
+        19203522,
+        18361483,
+        18890215,
+        19237516,
+        19424036,
+        18357055,
+        18118378,
+        18282335,
+        18169103,
+        18572839,
+        18958733,
+        19065113,
+        18561078,
+        18577328,
+        18600782
+      ],
+      "status": "SUCCESS"
+    },
+    "board_12x12_hard_6220_1.dat": {
+      "board_info": {
+        "block_size": 12,
+        "size": 144,
+        "hints": 14516,
+        "empty_cells": 6220
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_12x12_veryhard_10368_1.dat": {
+      "board_info": {
+        "block_size": 12,
+        "size": 144,
+        "hints": 10368,
+        "empty_cells": 10368
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_13x13_easy_4284_1.dat": {
+      "board_info": {
+        "block_size": 13,
+        "size": 169,
+        "hints": 24277,
+        "empty_cells": 4284
+      },
+      "statistics": {
+        "mean_ns": 24901424.6,
+        "std_ns": 594952.746730307,
+        "min_ns": 23998274.0,
+        "count": 20
+      },
+      "runs": [
+        25312649,
+        24865700,
+        25064954,
+        25454204,
+        25457690,
+        24401190,
+        25463682,
+        24180175,
+        25032985,
+        24636841,
+        24055051,
+        24836947,
+        25141227,
+        23998274,
+        25042532,
+        24273770,
+        25448855,
+        25083730,
+        26208138,
+        24069898
+      ],
+      "status": "SUCCESS"
+    },
+    "board_13x13_medium_7140_1.dat": {
+      "board_info": {
+        "block_size": 13,
+        "size": 169,
+        "hints": 21421,
+        "empty_cells": 7140
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_13x13_veryhard_12852_1.dat": {
+      "board_info": {
+        "block_size": 13,
+        "size": 169,
+        "hints": 15709,
+        "empty_cells": 12852
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_14x14_easy_5762_1.dat": {
+      "board_info": {
+        "block_size": 14,
+        "size": 196,
+        "hints": 32654,
+        "empty_cells": 5762
+      },
+      "statistics": {
+        "mean_ns": 53578502.1,
+        "std_ns": 1154063.1334746631,
+        "min_ns": 51529002.0,
+        "count": 20
+      },
+      "runs": [
+        54555828,
+        53809749,
+        55536618,
+        53049514,
+        54448648,
+        51717636,
+        53874470,
+        52069125,
+        54641088,
+        52554135,
+        54564605,
+        51529002,
+        52539767,
+        54720587,
+        52846924,
+        54378075,
+        53001023,
+        54438278,
+        52751505,
+        54543465
+      ],
+      "status": "SUCCESS"
+    },
+    "board_14x14_medium_9604_1.dat": {
+      "board_info": {
+        "block_size": 14,
+        "size": 196,
+        "hints": 28812,
+        "empty_cells": 9604
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_14x14_veryhard_17287_1.dat": {
+      "board_info": {
+        "block_size": 14,
+        "size": 196,
+        "hints": 21129,
+        "empty_cells": 17287
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    },
+    "board_15x15_easy_5062_1.dat": {
+      "board_info": {
+        "block_size": 15,
+        "size": 225,
+        "hints": 45563,
+        "empty_cells": 5062
+      },
+      "statistics": {
+        "mean_ns": 36980753.35,
+        "std_ns": 758976.7767106112,
+        "min_ns": 35714405.0,
+        "count": 20
+      },
+      "runs": [
+        35714405,
+        37581186,
+        36413487,
+        38254268,
+        36465614,
+        36686839,
+        37885246,
+        36822713,
+        37942574,
+        36145734,
+        37589321,
+        36749827,
+        36408276,
+        36997562,
+        36838683,
+        37751595,
+        37333180,
+        36053661,
+        37957381,
+        36023515
+      ],
+      "status": "SUCCESS"
+    },
+    "board_15x15_medium_10125_1.dat": {
+      "board_info": {
+        "block_size": 15,
+        "size": 225,
+        "hints": 40500,
+        "empty_cells": 10125
+      },
+      "statistics": {
+        "mean_ns": 1646652740.85,
+        "std_ns": 31088068.533532623,
+        "min_ns": 1584038155.0,
+        "count": 20
+      },
+      "runs": [
+        1625584336,
+        1682385305,
+        1669333048,
+        1623624911,
+        1685016108,
+        1632927046,
+        1673896245,
+        1624258780,
+        1666088332,
+        1625318698,
+        1677180724,
+        1659217829,
+        1584038155,
+        1589850013,
+        1672835215,
+        1624377773,
+        1668651660,
+        1668062335,
+        1666818372,
+        1613589932
+      ],
+      "status": "SUCCESS"
+    },
+    "board_15x15_hard_20250_1.dat": {
+      "board_info": {
+        "block_size": 15,
+        "size": 225,
+        "hints": 30375,
+        "empty_cells": 20250
+      },
+      "statistics": {
+        "mean_ns": 60000000000.0,
+        "std_ns": 0.0,
+        "min_ns": 60000000000.0,
+        "count": 0
+      },
+      "runs": [],
+      "status": "TIMEOUT"
+    }
+  }
+}

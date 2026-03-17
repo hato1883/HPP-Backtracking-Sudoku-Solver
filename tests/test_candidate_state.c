@@ -219,6 +219,55 @@ static void test_candidate_propagates_singles_to_completion(void)
     destroy_board(&board);
 }
 
+static void test_candidate_propagates_hidden_single(void)
+{
+    const hpp_cell cells[] = {
+        1,
+        0,
+        0,
+        4,
+        0,
+        4,
+        0,
+        0,
+        0,
+        0,
+        4,
+        0,
+        4,
+        0,
+        0,
+        1,
+    };
+
+    hpp_board* board = create_board_from_cells(cells, 4);
+    if (board == NULL)
+    {
+        CU_FAIL_FATAL("Failed to allocate board");
+        return;
+    }
+
+    hpp_candidate_state state = {0};
+    if (hpp_candidate_state_init_from_board(&state, board) != HPP_CANDIDATE_INIT_OK)
+    {
+        CU_FAIL_FATAL("Failed to initialize candidate state");
+        destroy_board(&board);
+        return;
+    }
+
+    hpp_candidate_budget budget = {
+        .iterations              = 0,
+        .max_iterations          = 0,
+        .iteration_limit_reached = false,
+    };
+
+    CU_ASSERT_TRUE(hpp_candidate_state_propagate_singles(&state, &budget));
+    CU_ASSERT_EQUAL(state.board->cells[(1U * 4U) + 2U], 1);
+
+    hpp_candidate_state_destroy(&state);
+    destroy_board(&board);
+}
+
 static void test_candidate_build_branch_detects_conflict(void)
 {
     const hpp_cell cells[] = {
@@ -287,6 +336,8 @@ int main(void)
         CU_add_test(suite,
                     "propagates singles to completion",
                     test_candidate_propagates_singles_to_completion) == NULL ||
+        CU_add_test(suite, "propagates hidden singles", test_candidate_propagates_hidden_single) ==
+            NULL ||
         CU_add_test(suite,
                     "build branch detects conflict",
                     test_candidate_build_branch_detects_conflict) == NULL)
