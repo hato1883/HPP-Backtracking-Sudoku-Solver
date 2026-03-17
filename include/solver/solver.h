@@ -24,8 +24,8 @@ typedef enum SolverStatus
  */
 typedef struct SolverConfig
 {
-    /** Max iterations before giving up; 0 = unlimited. */
-    uint64_t max_iterations;
+    /** Number of OpenMP worker threads; 0 = runtime default. */
+    uint32_t thread_count;
 
     /** Progress reporting sink (NULL = no reporting, zero overhead). */
     hpp_progress_sink_config progress_sink;

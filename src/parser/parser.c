@@ -11,7 +11,7 @@
 static void parse_header(FILE* file, unsigned char* base, unsigned char* side);
 static void parse_board_cells(FILE* file, hpp_board* board);
 
-hpp_board* parse_file(char* file_name)
+hpp_board* parse_file(const char* file_name)
 {
     FILE* file = fopen(file_name, "rb");
     if (file == NULL)

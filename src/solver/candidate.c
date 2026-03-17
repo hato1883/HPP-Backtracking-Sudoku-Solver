@@ -61,18 +61,6 @@ static inline size_t hpp_candidate_box_index(const hpp_board* board, size_t row,
     return ((row / board->block_length) * board->block_length) + (col / board->block_length);
 }
 
-static inline bool hpp_candidate_budget_consume(hpp_candidate_budget* budget)
-{
-    if (budget->max_iterations != 0 && budget->iterations >= budget->max_iterations)
-    {
-        budget->iteration_limit_reached = true;
-        return false;
-    }
-
-    budget->iterations++;
-    return true;
-}
-
 static bool hpp_candidate_validate_initial_board(const hpp_board*            board,
                                                  hpp_validation_constraints* constraints)
 {
@@ -704,16 +692,8 @@ bool hpp_candidate_state_clone(const hpp_candidate_state* source, hpp_candidate_
     return true;
 }
 
-bool hpp_candidate_state_assign(hpp_candidate_state*  state,
-                                size_t                cell_index,
-                                size_t                value,
-                                hpp_candidate_budget* budget)
+bool hpp_candidate_state_assign(hpp_candidate_state* state, size_t cell_index, size_t value)
 {
-    if (!hpp_candidate_budget_consume(budget))
-    {
-        return false;
-    }
-
     if (value == BOARD_CELL_EMPTY || value > state->board->side_length)
     {
         return false;
@@ -774,7 +754,7 @@ bool hpp_candidate_state_assign(hpp_candidate_state*  state,
     return true;
 }
 
-bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state, hpp_candidate_budget* budget)
+bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state)
 {
     size_t modified_cell = SIZE_MAX;
     while (hpp_candidate_modified_pop(state, &modified_cell))
@@ -801,7 +781,7 @@ bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state, hpp_candi
                 const size_t single_value =
                     hpp_candidate_find_single_value_for_cell(state, modified_cell);
                 if (single_value == BOARD_CELL_EMPTY ||
-                    !hpp_candidate_state_assign(state, modified_cell, single_value, budget))
+                    !hpp_candidate_state_assign(state, modified_cell, single_value))
                 {
                     return false;
                 }
@@ -815,7 +795,7 @@ bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state, hpp_candi
         if (hpp_candidate_find_hidden_single_around_cell(
                 state, modified_cell, &hidden_single_cell, &hidden_single_value))
         {
-            if (!hpp_candidate_state_assign(state, hidden_single_cell, hidden_single_value, budget))
+            if (!hpp_candidate_state_assign(state, hidden_single_cell, hidden_single_value))
             {
                 return false;
             }

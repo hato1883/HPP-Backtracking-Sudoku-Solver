@@ -75,7 +75,7 @@ static void test_backtracking_solver_solves_known_4x4_puzzle(void)
     }
 
     const hpp_solver_config config = {
-        .max_iterations = 0,
+        .thread_count = 1,
         .progress_sink =
             {
                 .callback         = NULL,
@@ -128,7 +128,7 @@ static void test_backtracking_solver_rejects_invalid_initial_board(void)
     destroy_board(&board);
 }
 
-static void test_backtracking_solver_honors_iteration_limit(void)
+static void test_backtracking_solver_solves_known_4x4_with_parallel_tasks(void)
 {
     const hpp_cell puzzle_cells[] = {
         1,
@@ -157,7 +157,7 @@ static void test_backtracking_solver_honors_iteration_limit(void)
     }
 
     const hpp_solver_config config = {
-        .max_iterations = 1,
+        .thread_count = 4,
         .progress_sink =
             {
                 .callback         = NULL,
@@ -167,20 +167,13 @@ static void test_backtracking_solver_honors_iteration_limit(void)
         .moves_log_file = NULL,
     };
 
-    const hpp_solver_status status         = solve(board, &config);
-    bool                    has_empty_cell = false;
+    const hpp_solver_status status = solve(board, &config);
 
+    CU_ASSERT_EQUAL(status, SOLVER_SUCCESS);
     for (size_t idx = 0; idx < board->cell_count; ++idx)
     {
-        if (board->cells[idx] == BOARD_CELL_EMPTY)
-        {
-            has_empty_cell = true;
-            break;
-        }
+        CU_ASSERT_NOT_EQUAL(board->cells[idx], BOARD_CELL_EMPTY);
     }
-
-    CU_ASSERT_EQUAL(status, SOLVER_UNSOLVED);
-    CU_ASSERT_TRUE(has_empty_cell);
 
     destroy_board(&board);
 }
@@ -233,7 +226,7 @@ static void test_backtracking_solver_solves_with_single_candidate_propagation(vo
     }
 
     const hpp_solver_config config = {
-        .max_iterations = 8,
+        .thread_count = 2,
         .progress_sink =
             {
                 .callback         = NULL,
@@ -272,8 +265,8 @@ int main(void)
                     "rejects invalid initial board",
                     test_backtracking_solver_rejects_invalid_initial_board) == NULL ||
         CU_add_test(suite,
-                    "honors iteration limit",
-                    test_backtracking_solver_honors_iteration_limit) == NULL ||
+                    "solves known 4x4 with parallel tasks",
+                    test_backtracking_solver_solves_known_4x4_with_parallel_tasks) == NULL ||
         CU_add_test(suite,
                     "solves using single-candidate propagation",
                     test_backtracking_solver_solves_with_single_candidate_propagation) == NULL)

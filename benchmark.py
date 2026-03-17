@@ -118,7 +118,7 @@ def run_benchmark(solver_path, dat_file, answer_file, timeout=60):
     """Run solver with timeout and extract timing data."""
     try:
         result = subprocess.run(
-            [solver_path, dat_file, "--benchmark"],
+            [solver_path, "--benchmark", "--threads", "12", dat_file],
             capture_output=True,
             text=False,
             timeout=timeout

@@ -64,7 +64,7 @@ static void test_candidate_init_rejects_invalid_board(void)
     destroy_board(&board);
 }
 
-static void test_candidate_assign_honors_iteration_budget(void)
+static void test_candidate_assign_rejects_row_conflict(void)
 {
     hpp_board* board = create_board(4);
     if (board == NULL)
@@ -81,15 +81,8 @@ static void test_candidate_assign_honors_iteration_budget(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 1,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_TRUE(hpp_candidate_state_assign(&state, 0, 1, &budget));
-    CU_ASSERT_FALSE(hpp_candidate_state_assign(&state, 1, 2, &budget));
-    CU_ASSERT_TRUE(budget.iteration_limit_reached);
+    CU_ASSERT_TRUE(hpp_candidate_state_assign(&state, 0, 1));
+    CU_ASSERT_FALSE(hpp_candidate_state_assign(&state, 1, 1));
     CU_ASSERT_EQUAL(state.board->cells[1], BOARD_CELL_EMPTY);
 
     hpp_candidate_state_destroy(&state);
@@ -135,13 +128,7 @@ static void test_candidate_clone_is_independent(void)
     hpp_candidate_state clone = {0};
     CU_ASSERT_TRUE(hpp_candidate_state_clone(&source, &clone));
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_TRUE(hpp_candidate_state_assign(&clone, 3, 4, &budget));
+    CU_ASSERT_TRUE(hpp_candidate_state_assign(&clone, 3, 4));
     CU_ASSERT_EQUAL(clone.board->cells[3], 4);
     CU_ASSERT_EQUAL(source.board->cells[3], BOARD_CELL_EMPTY);
 
@@ -205,13 +192,7 @@ static void test_candidate_propagates_singles_to_completion(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_TRUE(hpp_candidate_state_propagate_singles(&state, &budget));
+    CU_ASSERT_TRUE(hpp_candidate_state_propagate_singles(&state));
     CU_ASSERT_TRUE(hpp_candidate_state_is_complete(&state));
     assert_board_matches(state.board, expected);
 
@@ -255,13 +236,7 @@ static void test_candidate_propagates_hidden_single(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_TRUE(hpp_candidate_state_propagate_singles(&state, &budget));
+    CU_ASSERT_TRUE(hpp_candidate_state_propagate_singles(&state));
     CU_ASSERT_EQUAL(state.board->cells[(1U * 4U) + 2U], 1);
 
     hpp_candidate_state_destroy(&state);
@@ -348,13 +323,7 @@ static void test_candidate_propagation_detects_zero_candidate_cell(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state, &budget));
+    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state));
 
     hpp_candidate_state_destroy(&state);
     destroy_board(&board);
@@ -396,13 +365,7 @@ static void test_candidate_propagation_detects_peer_elimination_conflict(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
-    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state, &budget));
+    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state));
 
     hpp_candidate_state_destroy(&state);
     destroy_board(&board);
@@ -426,8 +389,8 @@ int main(void)
                     "init rejects invalid board",
                     test_candidate_init_rejects_invalid_board) == NULL ||
         CU_add_test(suite,
-                    "assign honors iteration budget",
-                    test_candidate_assign_honors_iteration_budget) == NULL ||
+                    "assign rejects row conflict",
+                    test_candidate_assign_rejects_row_conflict) == NULL ||
         CU_add_test(suite, "clone is independent", test_candidate_clone_is_independent) == NULL ||
         CU_add_test(suite,
                     "propagates singles to completion",

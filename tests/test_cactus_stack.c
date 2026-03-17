@@ -83,19 +83,13 @@ static void test_cactus_clone_commit_and_pop(void)
         return;
     }
 
-    hpp_candidate_budget budget = {
-        .iterations              = 0,
-        .max_iterations          = 0,
-        .iteration_limit_reached = false,
-    };
-
     CU_ASSERT_TRUE(hpp_cactus_stack_push_clone(&stack));
-    CU_ASSERT_TRUE(hpp_candidate_state_assign(hpp_cactus_stack_top_state(&stack), 3, 4, &budget));
+    CU_ASSERT_TRUE(hpp_candidate_state_assign(hpp_cactus_stack_top_state(&stack), 3, 4));
     CU_ASSERT_TRUE(hpp_cactus_stack_pop(&stack));
     CU_ASSERT_EQUAL(hpp_cactus_stack_top_state(&stack)->board->cells[3], BOARD_CELL_EMPTY);
 
     CU_ASSERT_TRUE(hpp_cactus_stack_push_clone(&stack));
-    CU_ASSERT_TRUE(hpp_candidate_state_assign(hpp_cactus_stack_top_state(&stack), 3, 4, &budget));
+    CU_ASSERT_TRUE(hpp_candidate_state_assign(hpp_cactus_stack_top_state(&stack), 3, 4));
     CU_ASSERT_TRUE(hpp_cactus_stack_commit_top_to_parent(&stack));
     CU_ASSERT_TRUE(hpp_cactus_stack_pop(&stack));
     CU_ASSERT_EQUAL(hpp_cactus_stack_top_state(&stack)->board->cells[3], 4);
