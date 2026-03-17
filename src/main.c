@@ -1,13 +1,17 @@
-#include "graphics/tui_consumer.h"
+#include "data/board.h"
 #include "parser/parser.h"
 #include "solver/solver.h"
-#include "solver/sudoku.h"
 #include "utils/logger.h"
 #include "utils/timing.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdio.h>
+
+static const char* const     default_input_file  = "board.dat";
+static const char* const     default_output_file = "answer.dat";
 
 /**
  * Parse command-line arguments.
@@ -17,10 +21,17 @@
  * @param enable_ui output flag for --ui mode.
  * @param moves_log_file output pointer for --moves-log FILE mode.
  */
-static void parse_args(int argc, char* argv[], bool* enable_ui, const char** moves_log_file)
+static void        parse_args(int          argc,
+                              char*        argv[],
+                              bool*        enable_ui,
+                              const char** moves_log_file,
+                              const char** input_file,
+                              bool*        enable_benchmark)
 {
-    *enable_ui      = false;
-    *moves_log_file = NULL;
+    *enable_ui        = false;
+    *moves_log_file   = NULL;
+    *input_file       = default_input_file;
+    *enable_benchmark = false;
 
     for (int i = 1; i < argc; i++)
     {
@@ -28,118 +39,161 @@ static void parse_args(int argc, char* argv[], bool* enable_ui, const char** mov
         {
             *enable_ui = true;
         }
+        else if (strcmp(argv[i], "--benchmark") == 0)
+        {
+            *enable_benchmark = true;
+        }
         else if (strcmp(argv[i], "--moves-log") == 0 && i + 1 < argc)
         {
             *moves_log_file = argv[++i];
         }
+        else if (strcmp(argv[i], "--max-iterations") == 0 && i + 1 < argc)
+        {
+            /* Skip this and its argument (handled separately in config) */
+            i++;
+        }
+        else if (argv[i][0] != '-')
+        {
+            /* First non-flag argument is the input file */
+            *input_file = argv[i];
+        }
     }
 }
 
+/**
+ * @brief Write solution to output (stdout if piped, answer.dat otherwise).
+ */
+static void write_solution_output(hpp_solver_status status, hpp_board* board, bool is_piped)
+{
+    if (status != SOLVER_SUCCESS)
+    {
+        return;
+    }
+
+    if (is_piped)
+    {
+        write_board_to_stream(stdout, board, 1);
+    }
+    else
+    {
+        LOG_DEBUG("Writing solution to %s", default_output_file);
+        if (write_solution(default_output_file, board) != 0)
+        {
+            LOG_WARN("Failed to write solution file");
+        }
+    }
+}
+
+/**
+ * @brief Configure logging based on whether output is piped.
+ *
+ * Disables logging if output is piped (for clean output in scripts).
+ */
+static void configure_logging_for_pipe(bool is_piped)
+{
+    if (is_piped)
+    {
+        logger_set_level(LOG_LEVEL_NONE);
+    }
+}
+
+
+/**
+ * @brief Convert solver status to string representation.
+ */
+static const char* get_status_string(hpp_solver_status status)
+{
+    switch (status)
+    {
+        case SOLVER_SUCCESS:
+            return "SUCCESS";
+        case SOLVER_UNSOLVED:
+            return "UNSOLVED";
+        case SOLVER_ABORTED:
+            return "ABORTED";
+        case SOLVER_ERROR:
+            return "ERROR";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+
 int main(int argc, char* argv[])
 {
-    bool        enable_ui      = false;
-    const char* moves_log_file = NULL;
-    parse_args(argc, argv, &enable_ui, &moves_log_file);
 
-    // logger_set_level(LOG_LEVEL_DEBUG);
-    // logger_set_verbosity(0);
+    /* Parse command-line arguments */
+    bool        enable_ui        = false;
+    const char* moves_log_file   = NULL;
+    const char* input_file       = NULL;
+    bool        enable_benchmark = false;
+    parse_args(argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark);
+
+    /* Detect if output is piped and configure accordingly */
+    bool is_piped = !isatty(STDOUT_FILENO);
+    configure_logging_for_pipe(is_piped);
+    if (is_piped)
+    {
+        enable_ui = false;
+    }
+
+    /* In benchmark mode, disable logging and UI for cleaner output */
+    if (enable_benchmark)
+    {
+        logger_set_level(LOG_LEVEL_NONE);
+        enable_ui = false;
+    }
 
     hpp_timer timer;
     timer_start(&timer);
 
-    LOG_INFO("Loading board from board.dat");
-    hpp_board* initial_board = parse_file("board.dat");
+    LOG_INFO("Loading board from %s", input_file);
+    hpp_board* initial_board = parse_file(input_file);
     if (initial_board == NULL)
     {
         LOG_ERROR("Failed to parse board");
         return 1;
     }
 
-    LOG_INFO("Received board:");
-    print_board(initial_board);
-
-    // Randomize unfixed cells to create a starting board state for the solver
-    LOG_INFO("Randomizing unfixed cells");
-    randomize_board(initial_board);
-
-    LOG_INFO("Board after randomization:");
-    print_board(initial_board);
-
-    // Set up solver configuration
-    const int         update_rate   = 1;
-    hpp_solver_config solver_config = {
-        .max_iterations = 0, // No limit (0 = unlimited)
-        .progress_sink  = {.callback = NULL, .userdata = NULL, .progress_every_n = update_rate},
-        .moves_log_file = moves_log_file,
-    };
-
-    // Set up TUI consumer if requested
-    hpp_tui_consumer* tui = NULL;
-    if (enable_ui)
+    /* Display board if not in piped or benchmark mode */
+    if (!is_piped && !enable_benchmark)
     {
-        LOG_INFO("Starting TUI");
-        tui = tui_consumer_create(initial_board->size);
-        if (tui != NULL)
-        {
-            solver_config.progress_sink = tui_consumer_sink(tui);
-        }
-        else
-        {
-            LOG_WARN("Failed to create TUI consumer; running headless");
-        }
+        printf("Solving the following board:\n");
+        print_board(initial_board);
+        printf("\n");
     }
 
     // Run solver
     LOG_INFO("Starting solver");
-    hpp_solver_status status = solve(initial_board, &solver_config);
+    hpp_solver_config solver_config = {0};
+    hpp_solver_status status        = solve(initial_board, &solver_config);
 
-    // Finalize TUI if running
-    if (tui != NULL)
+    // Write solution if successful
+    write_solution_output(status, initial_board, is_piped);
+
+    timer_stop(&timer);
+
+    /* Report results */
+    if (enable_benchmark)
     {
-        tui_consumer_finalize(tui, NULL, initial_board);
-        tui_consumer_destroy(&tui);
+        /* Output benchmark data in JSON format */
+        uint64_t elapsed_ns = timer_ns(&timer);
+        printf("{\"status\": \"%s\", \"elapsed_ns\": %llu, \"elapsed_s\": %.9lf}\n",
+               get_status_string(status),
+               (unsigned long long)elapsed_ns,
+               timer_s(&timer));
     }
     else
     {
-        // Headless mode: print final board
-        LOG_INFO("Final board:");
+        printf("Solved board:\n");
         print_board(initial_board);
-    }
-
-    // Write solution if successful
-    if (status == SOLVER_SUCCESS)
-    {
-        LOG_INFO("Writing solution to answer.dat");
-        if (write_solution("answer.dat", initial_board) != 0)
-        {
-            LOG_WARN("Failed to write solution file");
-        }
+        printf("\n");
+        LOG_INFO("Solver finished with status: %s", get_status_string(status));
+        LOG_INFO("Total time: %.4lf seconds", timer_s(&timer));
     }
 
     // Clean up
     destroy_board(&initial_board);
-
-    timer_stop(&timer);
-
-    const char* status_str;
-    switch (status)
-    {
-        case SOLVER_SUCCESS:
-            status_str = "SUCCESS";
-            break;
-        case SOLVER_UNSOLVED:
-            status_str = "UNSOLVED";
-            break;
-        case SOLVER_ABORTED:
-            status_str = "ABORTED";
-            break;
-        case SOLVER_ERROR:
-            status_str = "ERROR";
-            break;
-    }
-
-    LOG_INFO("Solver finished with status: %s", status_str);
-    LOG_INFO("Total time: %.4lf seconds", timer_s(&timer));
 
     return (status == SOLVER_SUCCESS) ? 0 : 1;
 }

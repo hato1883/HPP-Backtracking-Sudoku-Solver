@@ -15,7 +15,6 @@ def validate_sudoku(filename="answer.dat"):
     File format:
     - 1 byte: block_size (e.g., 3 for 9x9, 4 for 16x16, 5 for 25x25, etc.)
     - 1 byte: side (size of board, e.g., 9, 16, 25, etc.)
-    - newline character
     - side*side bytes: the board values (1 to side, 0 means empty)
     
     Returns: (is_valid, errors)
@@ -25,11 +24,6 @@ def validate_sudoku(filename="answer.dat"):
             # Read block_size and side
             block_size = struct.unpack('B', f.read(1))[0]
             side = struct.unpack('B', f.read(1))[0]
-            
-            # Read newline
-            newline = f.read(1)
-            if newline != b'\n':
-                return False, [f"Expected newline after header, got {newline}"]
             
             # Read board
             board_data = f.read(side * side)
@@ -118,7 +112,6 @@ def print_board(filename="answer.dat"):
         with open(filename, 'rb') as f:
             block_size = struct.unpack('B', f.read(1))[0]
             side = struct.unpack('B', f.read(1))[0]
-            f.read(1)  # newline
             board_data = f.read(side * side)
             board = list(board_data)
             
@@ -137,17 +130,46 @@ def print_board(filename="answer.dat"):
         print(f"Error printing board: {e}")
 
 if __name__ == "__main__":
-    filename = "answer.dat" if len(sys.argv) < 2 else sys.argv[1]
-    
-    is_valid, errors = validate_sudoku(filename)
-    
-    if is_valid:
-        print("Solution is VALID!")
-        print_board(filename)
-        sys.exit(0)
+    # Determine input source
+    if not sys.stdin.isatty():
+        # Data is being piped to stdin - read binary data and validate
+        import tempfile
+        stdin_data = sys.stdin.buffer.read()
+        
+        # Write to temporary file for validation
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.dat') as tmp:
+            tmp.write(stdin_data)
+            tmp_filename = tmp.name
+        
+        try:
+            is_valid, errors = validate_sudoku(tmp_filename)
+            
+            if is_valid:
+                print("Solution is VALID!")
+                print_board(tmp_filename)
+                sys.exit(0)
+            else:
+                print(f"\n❌ Solution is INVALID - found {len(errors)} error(s):\n")
+                for error in errors:
+                    print(f"  - {error}")
+                print()
+                sys.exit(1)
+        finally:
+            import os
+            os.unlink(tmp_filename)
     else:
-        print(f"\n❌ Solution is INVALID - found {len(errors)} error(s):\n")
-        for error in errors:
-            print(f"  - {error}")
-        print()
-        sys.exit(1)
+        # Normal file argument mode
+        filename = "answer.dat" if len(sys.argv) < 2 else sys.argv[1]
+        
+        is_valid, errors = validate_sudoku(filename)
+        
+        if is_valid:
+            print("Solution is VALID!")
+            print_board(filename)
+            sys.exit(0)
+        else:
+            print(f"\n❌ Solution is INVALID - found {len(errors)} error(s):\n")
+            for error in errors:
+                print(f"  - {error}")
+            print()
+            sys.exit(1)

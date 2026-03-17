@@ -2,7 +2,7 @@
 #define SOLVER_SOLVER_H
 
 #include "solver/sink.h"
-#include "solver/sudoku.h"
+#include "data/board.h"
 
 #include <stdint.h>
 
