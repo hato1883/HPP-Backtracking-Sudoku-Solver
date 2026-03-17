@@ -25,13 +25,6 @@ typedef struct CandidateState
     size_t                      remaining_unassigned;
 } hpp_candidate_state;
 
-typedef struct CandidateBudget
-{
-    uint64_t iterations;
-    uint64_t max_iterations;
-    bool     iteration_limit_reached;
-} hpp_candidate_budget;
-
 typedef struct CandidateBranch
 {
     size_t cell_index;
@@ -60,13 +53,9 @@ void hpp_candidate_state_destroy(hpp_candidate_state* state);
 
 bool hpp_candidate_state_clone(const hpp_candidate_state* source, hpp_candidate_state* destination);
 
-bool hpp_candidate_state_assign(hpp_candidate_state*  state,
-                                size_t                cell_index,
-                                size_t                value,
-                                hpp_candidate_budget* budget);
+bool hpp_candidate_state_assign(hpp_candidate_state* state, size_t cell_index, size_t value);
 
-bool hpp_candidate_state_propagate_singles(hpp_candidate_state*  state,
-                                           hpp_candidate_budget* budget);
+bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state);
 
 hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state*  state,
                                                              hpp_candidate_branch* branch);

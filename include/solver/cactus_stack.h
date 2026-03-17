@@ -3,12 +3,14 @@
 
 #include "solver/candidate.h"
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 typedef struct CactusNode
 {
     struct CactusNode*  parent;
+    _Atomic size_t      ref_count;
     hpp_candidate_state state;
 } hpp_cactus_node;
 
@@ -19,6 +21,15 @@ typedef struct CactusStack
 } hpp_cactus_stack;
 
 void hpp_cactus_stack_init(hpp_cactus_stack* stack);
+
+hpp_cactus_node* hpp_cactus_node_create_root_from_board(const hpp_board*           board,
+                                                        hpp_candidate_init_status* status);
+
+hpp_cactus_node* hpp_cactus_node_create_child_clone(hpp_cactus_node* parent);
+
+void hpp_cactus_node_retain(hpp_cactus_node* node);
+
+void hpp_cactus_node_release(hpp_cactus_node* node);
 
 void hpp_cactus_stack_destroy(hpp_cactus_stack* stack);
 

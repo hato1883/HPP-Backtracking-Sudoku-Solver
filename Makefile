@@ -18,9 +18,10 @@ CC = clang
 DEBUG ?= 0
 
 # Compiler/linker base flags used by normal builds.
+OPENMP_FLAGS = -fopenmp
 INCLUDES = -Iinclude
-CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L
-LDFLAGS = -lm
+CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L $(OPENMP_FLAGS)
+LDFLAGS = -lm $(OPENMP_FLAGS)
 
 # Build profile selection.
 # Debug profile keeps symbols and enables sanitizers.
@@ -46,15 +47,15 @@ TEST_BIN = $(TEST_BUILD)/bin
 # Coverage-specific output and flags.
 COVERAGE_BUILD = $(BUILD)/coverage
 COVERAGE_HTML = $(COVERAGE_BUILD)/coverage.html
-COVERAGE_CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L -fopenmp -g -O0 --coverage -DLOG_VERBOSITY=0 -DLOG_LEVEL=1
-COVERAGE_LDFLAGS = -lm -fopenmp --coverage
+COVERAGE_CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L $(OPENMP_FLAGS) -g -O0 --coverage -DLOG_VERBOSITY=0 -DLOG_LEVEL=1
+COVERAGE_LDFLAGS = -lm $(OPENMP_FLAGS) --coverage
 
 # Valgrind-specific output and flags.
 VALGRIND_TARGET_DIR = $(BUILD)/valgrind
 VALGRIND_TARGET = $(VALGRIND_TARGET_DIR)/bin/sudoku-solver
 VALGRIND_OBJ = $(patsubst src/%.c, $(VALGRIND_TARGET_DIR)/obj/%.o, $(SRC))
-VALGRIND_CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L -fopenmp -g -gdwarf-4 -O0 -DLOG_VERBOSITY=0 -DLOG_LEVEL=1
-VALGRIND_LDFLAGS = -lm -fopenmp
+VALGRIND_CFLAGS = -std=c17 -Wall -Wextra -MMD -MP $(INCLUDES) -D_POSIX_C_SOURCE=200809L $(OPENMP_FLAGS) -g -gdwarf-4 -O0 -DLOG_VERBOSITY=0 -DLOG_LEVEL=1
+VALGRIND_LDFLAGS = -lm $(OPENMP_FLAGS)
 VALGRIND_FLAGS ?= --leak-check=full --show-leak-kinds=all --track-origins=yes --error-exitcode=1
 VALGRIND_SCENARIO ?= benchmarks/scenarios/board_5x5_medium_156_1.dat
 

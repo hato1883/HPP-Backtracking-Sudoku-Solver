@@ -11,7 +11,7 @@ enum
     NUMBER_BASE  = 10,
 };
 
-hpp_board* parse_file(char* file_name);
+hpp_board* parse_file(const char* file_name);
 
 /**
  * @brief Write a board to a FILE* stream (can be stdout or a file).

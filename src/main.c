@@ -4,6 +4,7 @@
 #include "utils/logger.h"
 #include "utils/timing.h"
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,24 @@
 
 static const char* const default_input_file  = "board.dat";
 static const char* const default_output_file = "answer.dat";
+
+static uint32_t parse_thread_count_arg(const char* value)
+{
+    if (value == NULL || *value == '\0')
+    {
+        return 0U;
+    }
+
+    char* end_ptr              = NULL;
+    errno                      = 0;
+    const unsigned long parsed = strtoul(value, &end_ptr, 10);
+    if (errno != 0 || end_ptr == value || *end_ptr != '\0' || parsed == 0U || parsed > UINT32_MAX)
+    {
+        return 0U;
+    }
+
+    return (uint32_t)parsed;
+}
 
 /**
  * Parse command-line arguments.
@@ -26,12 +45,14 @@ static void parse_args(int          argc,
                        bool*        enable_ui,
                        const char** moves_log_file,
                        const char** input_file,
-                       bool*        enable_benchmark)
+                       bool*        enable_benchmark,
+                       uint32_t*    thread_count)
 {
     *enable_ui        = false;
     *moves_log_file   = NULL;
     *input_file       = default_input_file;
     *enable_benchmark = false;
+    *thread_count     = 0U;
 
     for (int i = 1; i < argc; i++)
     {
@@ -47,9 +68,34 @@ static void parse_args(int          argc,
         {
             *moves_log_file = argv[++i];
         }
+        else if (strcmp(argv[i], "--threads") == 0 && i + 1 < argc)
+        {
+            const uint32_t parsed_thread_count = parse_thread_count_arg(argv[++i]);
+            if (parsed_thread_count != 0U)
+            {
+                *thread_count = parsed_thread_count;
+            }
+        }
+        else if (strncmp(argv[i], "--threads=", 10) == 0)
+        {
+            const uint32_t parsed_thread_count = parse_thread_count_arg(argv[i] + 10);
+            if (parsed_thread_count != 0U)
+            {
+                *thread_count = parsed_thread_count;
+            }
+        }
+        else if (strncmp(argv[i], "--threads ", 10) == 0)
+        {
+            // Supports accidental combined argv tokens such as "--threads 12".
+            const uint32_t parsed_thread_count = parse_thread_count_arg(argv[i] + 10);
+            if (parsed_thread_count != 0U)
+            {
+                *thread_count = parsed_thread_count;
+            }
+        }
         else if (strcmp(argv[i], "--max-iterations") == 0 && i + 1 < argc)
         {
-            /* Skip this and its argument (handled separately in config) */
+            // Deprecated and ignored: retained to avoid breaking old CLI scripts.
             i++;
         }
         else if (argv[i][0] != '-')
@@ -125,7 +171,9 @@ int main(int argc, char* argv[])
     const char* moves_log_file   = NULL;
     const char* input_file       = NULL;
     bool        enable_benchmark = false;
-    parse_args(argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark);
+    uint32_t    thread_count     = 0U;
+    parse_args(
+        argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark, &thread_count);
 
     /* Detect if output is piped and configure accordingly */
     bool is_piped = !isatty(STDOUT_FILENO);
@@ -163,8 +211,11 @@ int main(int argc, char* argv[])
 
     // Run solver
     LOG_INFO("Starting solver");
-    hpp_solver_config solver_config = {0};
-    hpp_solver_status status        = solve(initial_board, &solver_config);
+    hpp_solver_config solver_config = {
+        .thread_count   = thread_count,
+        .moves_log_file = moves_log_file,
+    };
+    hpp_solver_status status = solve(initial_board, &solver_config);
 
     // Write solution if successful
     write_solution_output(status, initial_board, is_piped);
