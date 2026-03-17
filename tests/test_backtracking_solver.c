@@ -185,6 +185,72 @@ static void test_backtracking_solver_honors_iteration_limit(void)
     destroy_board(&board);
 }
 
+static void test_backtracking_solver_solves_with_single_candidate_propagation(void)
+{
+    const hpp_cell puzzle_cells[] = {
+        1,
+        0,
+        3,
+        0,
+        0,
+        4,
+        0,
+        2,
+        2,
+        0,
+        4,
+        0,
+        0,
+        3,
+        0,
+        1,
+    };
+
+    const hpp_cell expected_solution[] = {
+        1,
+        2,
+        3,
+        4,
+        3,
+        4,
+        1,
+        2,
+        2,
+        1,
+        4,
+        3,
+        4,
+        3,
+        2,
+        1,
+    };
+
+    hpp_board* board = create_board_from_cells(puzzle_cells, 4);
+    if (board == NULL)
+    {
+        CU_FAIL_FATAL("Failed to allocate board");
+        return;
+    }
+
+    const hpp_solver_config config = {
+        .max_iterations = 8,
+        .progress_sink =
+            {
+                .callback         = NULL,
+                .userdata         = NULL,
+                .progress_every_n = 0,
+            },
+        .moves_log_file = NULL,
+    };
+
+    const hpp_solver_status status = solve(board, &config);
+
+    CU_ASSERT_EQUAL(status, SOLVER_SUCCESS);
+    assert_board_matches(board, expected_solution);
+
+    destroy_board(&board);
+}
+
 int main(void)
 {
     if (CU_initialize_registry() != CUE_SUCCESS)
@@ -207,7 +273,10 @@ int main(void)
                     test_backtracking_solver_rejects_invalid_initial_board) == NULL ||
         CU_add_test(suite,
                     "honors iteration limit",
-                    test_backtracking_solver_honors_iteration_limit) == NULL)
+                    test_backtracking_solver_honors_iteration_limit) == NULL ||
+        CU_add_test(suite,
+                    "solves using single-candidate propagation",
+                    test_backtracking_solver_solves_with_single_candidate_propagation) == NULL)
     {
         CU_cleanup_registry();
         return (int)CU_get_error();
