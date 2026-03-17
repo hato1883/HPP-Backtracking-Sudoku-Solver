@@ -1,5 +1,7 @@
 #include "solver/solver.h"
 
+#include "data/validation.h"
+
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -7,120 +9,32 @@
 
 typedef struct SolverState
 {
-    uint64_t iterations;
-    uint64_t max_iterations;
-    bool     iteration_limit_reached;
+    uint64_t                    iterations;
+    uint64_t                    max_iterations;
+    bool                        iteration_limit_reached;
+    hpp_validation_constraints* constraints;
 } hpp_solver_state;
 
-static size_t hpp_board_cell_index(const hpp_board* board, size_t row, size_t col)
+static inline bool hpp_validate_guess(const hpp_validation_constraints* constraints,
+                                      size_t                            row,
+                                      size_t                            col,
+                                      size_t                            value)
 {
-    return (row * board->side_length) + col;
-}
-
-static bool hpp_board_row_has_duplicate(const hpp_board* board, size_t row, size_t col)
-{
-    const hpp_cell value = board->cells[hpp_board_cell_index(board, row, col)];
-
-    if (value == BOARD_CELL_EMPTY)
-    {
-        return false;
-    }
-
-    for (size_t current_col = 0; current_col < board->side_length; ++current_col)
-    {
-        if (current_col == col)
-        {
-            continue;
-        }
-
-        if (board->cells[hpp_board_cell_index(board, row, current_col)] == value)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_board_column_has_duplicate(const hpp_board* board, size_t row, size_t col)
-{
-    const hpp_cell value = board->cells[hpp_board_cell_index(board, row, col)];
-
-    if (value == BOARD_CELL_EMPTY)
-    {
-        return false;
-    }
-
-    for (size_t current_row = 0; current_row < board->side_length; ++current_row)
-    {
-        if (current_row == row)
-        {
-            continue;
-        }
-
-        if (board->cells[hpp_board_cell_index(board, current_row, col)] == value)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_board_box_has_duplicate(const hpp_board* board, size_t row, size_t col)
-{
-    const hpp_cell value = board->cells[hpp_board_cell_index(board, row, col)];
-
-    if (value == BOARD_CELL_EMPTY)
-    {
-        return false;
-    }
-
-    const size_t box_row_start = (row / board->block_length) * board->block_length;
-    const size_t box_col_start = (col / board->block_length) * board->block_length;
-
-    for (size_t row_offset = 0; row_offset < board->block_length; ++row_offset)
-    {
-        for (size_t col_offset = 0; col_offset < board->block_length; ++col_offset)
-        {
-            const size_t current_row = box_row_start + row_offset;
-            const size_t current_col = box_col_start + col_offset;
-
-            if (current_row == row && current_col == col)
-            {
-                continue;
-            }
-
-            if (board->cells[hpp_board_cell_index(board, current_row, current_col)] == value)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_board_validate_guess(const hpp_board* board, size_t row, size_t col)
-{
-    const hpp_cell value = board->cells[hpp_board_cell_index(board, row, col)];
-
     if (value == BOARD_CELL_EMPTY)
     {
         return true;
     }
 
-    if ((size_t)value > board->side_length)
+    if (value > constraints->side_length)
     {
         return false;
     }
 
-    return !hpp_board_row_has_duplicate(board, row, col) &&
-           !hpp_board_column_has_duplicate(board, row, col) &&
-           !hpp_board_box_has_duplicate(board, row, col);
+    return hpp_validation_can_place_value(constraints, row, col, value);
 }
 
-static bool hpp_board_validate_initial_state(const hpp_board* board)
+static bool hpp_board_validate_initial_state(const hpp_board*            board,
+                                             hpp_validation_constraints* constraints)
 {
     if (board == NULL || board->cells == NULL || board->side_length == 0 ||
         board->block_length == 0 || board->cell_count != board->side_length * board->side_length)
@@ -134,18 +48,7 @@ static bool hpp_board_validate_initial_state(const hpp_board* board)
         return false;
     }
 
-    for (size_t row = 0; row < board->side_length; ++row)
-    {
-        for (size_t col = 0; col < board->side_length; ++col)
-        {
-            if (!hpp_board_validate_guess(board, row, col))
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    return hpp_validation_constraints_init_from_board(constraints, board);
 }
 
 static size_t hpp_collect_unassigned_indices(const hpp_board* board, size_t* unassigned_indices)
@@ -190,14 +93,30 @@ static bool hpp_backtracking_solve(hpp_board*        board,
             break;
         }
 
+        // Check if value can be placed using constraint validation
+        if (!hpp_validate_guess(state->constraints, row, col, value))
+        {
+            state->iterations++;
+            continue;
+        }
+
+        // Place the value
         board->cells[current_index] = (hpp_cell)value;
+        hpp_validation_row_add_value(state->constraints, row, value);
+        hpp_validation_col_add_value(state->constraints, col, value);
+        hpp_validation_box_add_value(state->constraints, row, col, value);
         state->iterations++;
 
-        if (hpp_board_validate_guess(board, row, col) &&
-            hpp_backtracking_solve(board, unassigned_indices, remaining_unassigned - 1, state))
+        if (hpp_backtracking_solve(board, unassigned_indices, remaining_unassigned - 1, state))
         {
             return true;
         }
+
+        // Remove the value and try next
+        board->cells[current_index] = BOARD_CELL_EMPTY;
+        hpp_validation_row_remove_value(state->constraints, row, value);
+        hpp_validation_col_remove_value(state->constraints, col, value);
+        hpp_validation_box_remove_value(state->constraints, row, col, value);
 
         if (state->iteration_limit_reached)
         {
@@ -205,20 +124,28 @@ static bool hpp_backtracking_solve(hpp_board*        board,
         }
     }
 
-    board->cells[current_index] = BOARD_CELL_EMPTY;
     return false;
 }
 
 hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
 {
-    if (!hpp_board_validate_initial_state(board))
+    hpp_validation_constraints* constraints =
+        hpp_validation_constraints_create(board->side_length, board->block_length);
+    if (constraints == NULL)
     {
+        return SOLVER_ERROR;
+    }
+
+    if (!hpp_board_validate_initial_state(board, constraints))
+    {
+        hpp_validation_constraints_destroy(&constraints);
         return SOLVER_UNSOLVED;
     }
 
     size_t* unassigned_indices = malloc(board->cell_count * sizeof(size_t));
     if (unassigned_indices == NULL)
     {
+        hpp_validation_constraints_destroy(&constraints);
         return SOLVER_ERROR;
     }
 
@@ -227,11 +154,13 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
                    .iterations              = 0,
                    .max_iterations          = (config != NULL) ? config->max_iterations : 0,
                    .iteration_limit_reached = false,
+                   .constraints             = constraints,
     };
 
     const bool solved = hpp_backtracking_solve(board, unassigned_indices, unassigned_count, &state);
 
     free(unassigned_indices);
+    hpp_validation_constraints_destroy(&constraints);
 
     return solved ? SOLVER_SUCCESS : SOLVER_UNSOLVED;
 }
