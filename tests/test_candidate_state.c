@@ -312,6 +312,102 @@ static void test_candidate_build_branch_detects_conflict(void)
     destroy_board(&board);
 }
 
+static void test_candidate_propagation_detects_zero_candidate_cell(void)
+{
+    const hpp_cell cells[] = {
+        0,
+        2,
+        3,
+        4,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    };
+
+    hpp_board* board = create_board_from_cells(cells, 4);
+    if (board == NULL)
+    {
+        CU_FAIL_FATAL("Failed to allocate board");
+        return;
+    }
+
+    hpp_candidate_state state = {0};
+    if (hpp_candidate_state_init_from_board(&state, board) != HPP_CANDIDATE_INIT_OK)
+    {
+        CU_FAIL_FATAL("Failed to initialize candidate state");
+        destroy_board(&board);
+        return;
+    }
+
+    hpp_candidate_budget budget = {
+        .iterations              = 0,
+        .max_iterations          = 0,
+        .iteration_limit_reached = false,
+    };
+
+    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state, &budget));
+
+    hpp_candidate_state_destroy(&state);
+    destroy_board(&board);
+}
+
+static void test_candidate_propagation_detects_peer_elimination_conflict(void)
+{
+    const hpp_cell cells[] = {
+        0,
+        0,
+        3,
+        4,
+        2,
+        3,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0,
+        4,
+        2,
+        0,
+        0,
+    };
+
+    hpp_board* board = create_board_from_cells(cells, 4);
+    if (board == NULL)
+    {
+        CU_FAIL_FATAL("Failed to allocate board");
+        return;
+    }
+
+    hpp_candidate_state state = {0};
+    if (hpp_candidate_state_init_from_board(&state, board) != HPP_CANDIDATE_INIT_OK)
+    {
+        CU_FAIL_FATAL("Failed to initialize candidate state");
+        destroy_board(&board);
+        return;
+    }
+
+    hpp_candidate_budget budget = {
+        .iterations              = 0,
+        .max_iterations          = 0,
+        .iteration_limit_reached = false,
+    };
+
+    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state, &budget));
+
+    hpp_candidate_state_destroy(&state);
+    destroy_board(&board);
+}
+
 int main(void)
 {
     if (CU_initialize_registry() != CUE_SUCCESS)
@@ -340,7 +436,13 @@ int main(void)
             NULL ||
         CU_add_test(suite,
                     "build branch detects conflict",
-                    test_candidate_build_branch_detects_conflict) == NULL)
+                    test_candidate_build_branch_detects_conflict) == NULL ||
+        CU_add_test(suite,
+                    "propagation detects zero-candidate contradiction",
+                    test_candidate_propagation_detects_zero_candidate_cell) == NULL ||
+        CU_add_test(suite,
+                    "propagation detects peer elimination contradiction",
+                    test_candidate_propagation_detects_peer_elimination_conflict) == NULL)
     {
         CU_cleanup_registry();
         return (int)CU_get_error();
