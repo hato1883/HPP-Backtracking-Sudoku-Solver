@@ -18,6 +18,10 @@ typedef struct CandidateState
     hpp_board*                  board;
     hpp_validation_constraints* constraints;
     uint8_t*                    candidates;
+    size_t*                     candidate_counts;
+    size_t*                     modified_cells;
+    uint8_t*                    modified_in_stack;
+    size_t                      modified_count;
     size_t                      remaining_unassigned;
 } hpp_candidate_state;
 
