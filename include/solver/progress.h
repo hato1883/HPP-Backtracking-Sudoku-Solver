@@ -1,7 +1,6 @@
 #ifndef SOLVER_PROGRESS_H
 #define SOLVER_PROGRESS_H
 
-#include "solver/cost.h"
 #include "solver/move.h"
 
 #include <stdint.h>
@@ -20,12 +19,6 @@ typedef struct SolverProgress
 
     /** Iteration counter in the solver. */
     uint64_t iteration;
-
-    /** Current cost/violations of the board. */
-    hpp_cost cost;
-
-    /** Best cost found so far. */
-    hpp_cost best_cost;
 
     /** Latest move that was applied (or invalid if no move yet). */
     hpp_move latest_move;

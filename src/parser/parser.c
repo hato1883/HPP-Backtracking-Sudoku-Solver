@@ -1,7 +1,7 @@
 
 #include "parser/parser.h"
 
-#include "solver/sudoku.h"
+#include "data/board.h"
 #include "utils/logger.h"
 
 #include <stdio.h>
@@ -25,22 +25,18 @@ hpp_board* parse_file(char* file_name)
 
     parse_header(file, &base, &side);
 
+    if ((size_t)base * (size_t)base != side)
+    {
+        LOG_ERROR("Inconsistent board header: base=%hhu side=%hhu", base, side);
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
     // This board will act as a starting point,
     // any created board must match filled elements with this one
     hpp_board* board = create_board(side);
 
-    if ((size_t)base * (size_t)base != board->size)
-    {
-        LOG_ERROR("Inconsistent board header: base=%hhu side=%hhu", base, side);
-        fclose(file);
-        destroy_board(&board);
-        exit(EXIT_FAILURE);
-    }
-
     parse_board_cells(file, board);
-
-    // Persist block size from file header
-    board->block_size = (size_t)base;
 
     fclose(file);
     return board;
@@ -90,64 +86,73 @@ static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
  */
 static void parse_board_cells(FILE* file, hpp_board* board)
 {
-    size_t side   = board->size;
-    size_t linear = 0;
-
-    /*
-        Alternative bulk approach using 64-bit words:
-        size_t word_index = 0;
-        uint64_t current_word = 0;
-        unsigned bit_pos = 0;
-    */
-
-    for (size_t row = 0; row < side; row++)
+    for (size_t i = 0; i < board->cell_count; i++)
     {
-        for (size_t col = 0; col < side; col++)
+        unsigned char value;
+        if (fread(&value, sizeof(unsigned char), 1, file) != 1)
         {
-            unsigned char value;
-            if (fread(&value, sizeof(unsigned char), 1, file) != 1)
-            {
-                LOG_ERROR("Unexpected end of file while reading board.");
-                fclose(file);
-                exit(EXIT_FAILURE);
-            }
-
-            board->cells[row][col] = value;
-
-            // Branchless update of single bit
-            hpp_bitmask bit = (uint64_t)(value > 0);
-            set_bit_linear(board->fixed, bit, linear);
-
-            /*
-            // Or branching update of 64 bits:
-            current_word |= (uint64_t)(value > 0) << bit_pos;
-            bit_pos++;
-
-            if (bit_pos == 64)
-            {
-                bulk_set_mask(board->masks, current_word, word_index);
-                current_word = 0;
-                bit_pos = 0;
-                word_index++;
-            }
-            */
-
-            linear++;
+            LOG_ERROR("Unexpected end of file while reading board.");
+            fclose(file);
+            exit(EXIT_FAILURE);
         }
-    }
 
-    /*
-    // Flush remainder
-    if (bit_pos != 0)
-    {
-        bulk_set_mask(board->masks, current_word, word_index);
+        board->cells[i] = value;
     }
-    */
+}
+
+/**
+ * @brief Write a board to a FILE* stream (can be stdout or a file).
+ *
+ * Format: block_size (1 byte) + side (1 byte) + board bytes.
+ *
+ * @param file   Output stream.
+ * @param board  The board to write.
+ * @param silent If true, suppress error logging.
+ * @return 0 on success, -1 on failure.
+ */
+int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
+{
+    if (file == NULL || board == NULL)
+    {
+        if (!silent)
+        {
+            LOG_ERROR("Invalid arguments to write_board_to_stream");
+        }
+        return -1;
+    }
+    const unsigned char block_size_byte = (unsigned char)board->block_length;
+    const unsigned char side_byte       = (unsigned char)board->side_length;
+    if (fwrite(&block_size_byte, sizeof(unsigned char), 1, file) != 1)
+    {
+        if (!silent)
+        {
+            LOG_ERROR("Failed to write block_size");
+        }
+        return -1;
+    }
+    if (fwrite(&side_byte, sizeof(unsigned char), 1, file) != 1)
+    {
+        if (!silent)
+        {
+            LOG_ERROR("Failed to write side");
+        }
+        return -1;
+    }
+    /* Write the entire flat cell slab in one call. */
+    if (fwrite(board->cells, sizeof(hpp_cell), board->cell_count, file) != board->cell_count)
+    {
+        if (!silent)
+        {
+            LOG_ERROR("Failed to write board cells");
+        }
+        return -1;
+    }
+    return 0;
 }
 
 /**
  * Write a solved board to a binary file.
- * Format: block_size (1 byte) + side (1 byte) + newline + board bytes
+ * Format: block_size (1 byte) + side (1 byte) + board bytes
  *
  * @param filename output file path
  * @param board the solved board to write
@@ -169,7 +174,7 @@ int write_solution(const char* filename, const hpp_board* board)
     }
 
     // Write block_size
-    unsigned char block_size = (unsigned char)board->block_size;
+    unsigned char block_size = (unsigned char)board->block_length;
     if (fwrite(&block_size, sizeof(unsigned char), 1, file) != 1)
     {
         LOG_ERROR("Failed to write block_size to solution file");
@@ -178,7 +183,7 @@ int write_solution(const char* filename, const hpp_board* board)
     }
 
     // Write side
-    unsigned char side = (unsigned char)board->size;
+    unsigned char side = (unsigned char)board->side_length;
     if (fwrite(&side, sizeof(unsigned char), 1, file) != 1)
     {
         LOG_ERROR("Failed to write side to solution file");
@@ -186,27 +191,17 @@ int write_solution(const char* filename, const hpp_board* board)
         return -1;
     }
 
-    // Write newline
-    unsigned char newline = '\n';
-    if (fwrite(&newline, sizeof(unsigned char), 1, file) != 1)
-    {
-        LOG_ERROR("Failed to write newline to solution file");
-        fclose(file);
-        return -1;
-    }
-
     // Write board cells
-    for (size_t row = 0; row < board->size; ++row)
+    for (size_t i = 0; i < board->cell_count; ++i)
     {
-        for (size_t col = 0; col < board->size; ++col)
+        unsigned char value = board->cells[i];
+        if (fwrite(&value, sizeof(unsigned char), 1, file) != 1)
         {
-            unsigned char value = board->cells[row][col];
-            if (fwrite(&value, sizeof(unsigned char), 1, file) != 1)
-            {
-                LOG_ERROR("Failed to write board cell at (%zu, %zu)", row, col);
-                fclose(file);
-                return -1;
-            }
+            LOG_ERROR("Failed to write board cell at (%zu, %zu)",
+                      i / board->side_length,
+                      i % board->side_length);
+            fclose(file);
+            return -1;
         }
     }
 

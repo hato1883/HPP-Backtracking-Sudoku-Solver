@@ -3,9 +3,12 @@
 
 # Build results 
 build/
+__pycache__
 
 # Borad generation data
 board.dat
+answer.dat
 
 # Clang Tidy build commands
 compile_commands.json
+benchmark_generation.log

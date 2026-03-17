@@ -1,0 +1,14 @@
+InheritParentConfig: true
+
+Checks: >
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -clang-analyzer-core.UndefinedBinaryOperatorResult,
+  -clang-analyzer-core.NonNullParamChecker,
+  -clang-analyzer-core.NullDereference
+
+WarningsAsErrors: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*
