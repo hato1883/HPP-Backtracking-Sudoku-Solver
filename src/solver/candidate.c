@@ -24,6 +24,14 @@ static inline void hpp_candidate_bit_set(uint8_t* bitvector, size_t value)
     bitvector[byte_idx] |= (uint8_t)(1U << bit_offset);
 }
 
+static inline void hpp_candidate_bit_clear(uint8_t* bitvector, size_t value)
+{
+    size_t  byte_idx   = 0;
+    uint8_t bit_offset = 0;
+    hpp_candidate_bit_position(value, &byte_idx, &bit_offset);
+    bitvector[byte_idx] &= (uint8_t)~(1U << bit_offset);
+}
+
 static inline bool hpp_candidate_bit_test(const uint8_t* bitvector, size_t value)
 {
     size_t  byte_idx   = 0;
@@ -146,6 +154,63 @@ static size_t hpp_candidate_count_unassigned_cells(const hpp_board* board)
     return unassigned_count;
 }
 
+static bool hpp_candidate_modified_push(hpp_candidate_state* state, size_t cell_index)
+{
+    if (state->modified_cells == NULL || state->modified_in_stack == NULL ||
+        cell_index >= state->board->cell_count)
+    {
+        return false;
+    }
+
+    if (state->modified_in_stack[cell_index] != 0U)
+    {
+        return true;
+    }
+
+    if (state->modified_count >= state->board->cell_count)
+    {
+        return false;
+    }
+
+    state->modified_cells[state->modified_count++] = cell_index;
+    state->modified_in_stack[cell_index]           = 1U;
+    return true;
+}
+
+static bool hpp_candidate_modified_pop(hpp_candidate_state* state, size_t* cell_index)
+{
+    if (state->modified_count == 0)
+    {
+        return false;
+    }
+
+    state->modified_count--;
+    *cell_index                           = state->modified_cells[state->modified_count];
+    state->modified_in_stack[*cell_index] = 0U;
+    return true;
+}
+
+static void hpp_candidate_modified_reset(hpp_candidate_state* state)
+{
+    state->modified_count = 0;
+    memset(state->modified_in_stack, 0, state->board->cell_count * sizeof(uint8_t));
+}
+
+static size_t hpp_candidate_find_single_value_for_cell(const hpp_candidate_state* state,
+                                                       size_t                     cell_index)
+{
+    const uint8_t* candidates = hpp_candidate_cell_at_const(state, cell_index);
+    for (size_t value = 1; value <= state->board->side_length; ++value)
+    {
+        if (hpp_candidate_bit_test(candidates, value))
+        {
+            return value;
+        }
+    }
+
+    return BOARD_CELL_EMPTY;
+}
+
 static size_t
 hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t* single_value)
 {
@@ -154,6 +219,7 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
 
     if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
     {
+        state->candidate_counts[cell_index] = 0;
         if (single_value != NULL)
         {
             *single_value = BOARD_CELL_EMPTY;
@@ -183,6 +249,7 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
         count++;
     }
 
+    state->candidate_counts[cell_index] = count;
     if (single_value != NULL)
     {
         *single_value = (count == 1) ? last_value : BOARD_CELL_EMPTY;
@@ -191,217 +258,295 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
     return count;
 }
 
-static bool hpp_candidate_refresh_candidates_and_find_naked_single(hpp_candidate_state* state,
-                                                                   size_t*              cell_index,
-                                                                   size_t*              value)
+static bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* state)
 {
-    *cell_index = SIZE_MAX;
-    *value      = BOARD_CELL_EMPTY;
+    hpp_candidate_modified_reset(state);
 
     for (size_t idx = 0; idx < state->board->cell_count; ++idx)
     {
-        if (state->board->cells[idx] != BOARD_CELL_EMPTY)
+        if (state->board->cells[idx] == BOARD_CELL_EMPTY)
         {
-            continue;
+            (void)hpp_candidate_compute_cell(state, idx, NULL);
+        }
+        else
+        {
+            memset(hpp_candidate_cell_at(state, idx), 0, HPP_CANDIDATE_BYTE_COUNT);
+            state->candidate_counts[idx] = 0;
         }
 
-        size_t       single_value    = BOARD_CELL_EMPTY;
-        const size_t candidate_count = hpp_candidate_compute_cell(state, idx, &single_value);
-        if (candidate_count == 0)
+        if (!hpp_candidate_modified_push(state, idx))
         {
             return false;
-        }
-
-        if (candidate_count == 1 && *cell_index == SIZE_MAX)
-        {
-            *cell_index = idx;
-            *value      = single_value;
         }
     }
 
     return true;
 }
 
-static bool hpp_candidate_find_hidden_single_in_rows(const hpp_candidate_state* state,
-                                                     size_t*                    cell_index,
-                                                     size_t*                    value)
+static bool hpp_candidate_find_hidden_single_in_row(const hpp_candidate_state* state,
+                                                    size_t                     row,
+                                                    size_t*                    cell_index,
+                                                    size_t*                    value)
 {
-    const size_t side_length = state->board->side_length;
-    for (size_t row = 0; row < side_length; ++row)
+    const size_t   side_length = state->board->side_length;
+    const uint8_t* row_bv      = state->constraints->row_bitvectors[row];
+
+    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
     {
-        const uint8_t* row_bv = state->constraints->row_bitvectors[row];
-        for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+        if (hpp_candidate_bit_test(row_bv, candidate_value))
         {
-            if (hpp_candidate_bit_test(row_bv, candidate_value))
+            continue;
+        }
+
+        size_t candidate_cell  = SIZE_MAX;
+        size_t candidate_count = 0;
+        for (size_t col = 0; col < side_length; ++col)
+        {
+            const size_t idx = (row * side_length) + col;
+            if (state->board->cells[idx] != BOARD_CELL_EMPTY)
             {
                 continue;
             }
 
-            size_t candidate_cell  = SIZE_MAX;
-            size_t candidate_count = 0;
-            for (size_t col = 0; col < side_length; ++col)
+            if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx), candidate_value))
             {
-                const size_t idx = (row * side_length) + col;
-                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-                {
-                    continue;
-                }
-
-                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
-                                            candidate_value))
-                {
-                    continue;
-                }
-
-                candidate_cell = idx;
-                candidate_count++;
-                if (candidate_count > 1)
-                {
-                    break;
-                }
+                continue;
             }
 
-            if (candidate_count == 1)
+            candidate_cell = idx;
+            candidate_count++;
+            if (candidate_count > 1)
             {
-                *cell_index = candidate_cell;
-                *value      = candidate_value;
-                return true;
+                break;
             }
+        }
+
+        if (candidate_count == 1)
+        {
+            *cell_index = candidate_cell;
+            *value      = candidate_value;
+            return true;
         }
     }
 
     return false;
 }
 
-static bool hpp_candidate_find_hidden_single_in_cols(const hpp_candidate_state* state,
-                                                     size_t*                    cell_index,
-                                                     size_t*                    value)
+static bool hpp_candidate_find_hidden_single_in_col(const hpp_candidate_state* state,
+                                                    size_t                     col,
+                                                    size_t*                    cell_index,
+                                                    size_t*                    value)
 {
-    const size_t side_length = state->board->side_length;
-    for (size_t col = 0; col < side_length; ++col)
+    const size_t   side_length = state->board->side_length;
+    const uint8_t* col_bv      = state->constraints->col_bitvectors[col];
+
+    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
     {
-        const uint8_t* col_bv = state->constraints->col_bitvectors[col];
-        for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+        if (hpp_candidate_bit_test(col_bv, candidate_value))
         {
-            if (hpp_candidate_bit_test(col_bv, candidate_value))
+            continue;
+        }
+
+        size_t candidate_cell  = SIZE_MAX;
+        size_t candidate_count = 0;
+        for (size_t row = 0; row < side_length; ++row)
+        {
+            const size_t idx = (row * side_length) + col;
+            if (state->board->cells[idx] != BOARD_CELL_EMPTY)
             {
                 continue;
             }
 
-            size_t candidate_cell  = SIZE_MAX;
-            size_t candidate_count = 0;
-            for (size_t row = 0; row < side_length; ++row)
+            if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx), candidate_value))
             {
-                const size_t idx = (row * side_length) + col;
-                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-                {
-                    continue;
-                }
-
-                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
-                                            candidate_value))
-                {
-                    continue;
-                }
-
-                candidate_cell = idx;
-                candidate_count++;
-                if (candidate_count > 1)
-                {
-                    break;
-                }
+                continue;
             }
 
-            if (candidate_count == 1)
+            candidate_cell = idx;
+            candidate_count++;
+            if (candidate_count > 1)
             {
-                *cell_index = candidate_cell;
-                *value      = candidate_value;
-                return true;
+                break;
             }
+        }
+
+        if (candidate_count == 1)
+        {
+            *cell_index = candidate_cell;
+            *value      = candidate_value;
+            return true;
         }
     }
 
     return false;
 }
 
-static bool hpp_candidate_find_hidden_single_in_boxes(const hpp_candidate_state* state,
-                                                      size_t*                    cell_index,
-                                                      size_t*                    value)
+static bool hpp_candidate_find_hidden_single_in_box(
+    const hpp_candidate_state* state, size_t row, size_t col, size_t* cell_index, size_t* value)
 {
     const size_t side_length  = state->board->side_length;
     const size_t block_length = state->board->block_length;
-    const size_t box_side     = side_length / block_length;
 
-    for (size_t box_row = 0; box_row < box_side; ++box_row)
+    const size_t   box_row = row / block_length;
+    const size_t   box_col = col / block_length;
+    const size_t   box_idx = (box_row * block_length) + box_col;
+    const uint8_t* box_bv  = state->constraints->box_bitvectors[box_idx];
+
+    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
     {
-        for (size_t box_col = 0; box_col < box_side; ++box_col)
+        if (hpp_candidate_bit_test(box_bv, candidate_value))
         {
-            const size_t   box_idx = (box_row * box_side) + box_col;
-            const uint8_t* box_bv  = state->constraints->box_bitvectors[box_idx];
-            for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
+            continue;
+        }
+
+        size_t candidate_cell  = SIZE_MAX;
+        size_t candidate_count = 0;
+
+        const size_t row_start = box_row * block_length;
+        const size_t col_start = box_col * block_length;
+        for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
+        {
+            for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
             {
-                if (hpp_candidate_bit_test(box_bv, candidate_value))
+                const size_t peer_row = row_start + row_offset;
+                const size_t peer_col = col_start + col_offset;
+                const size_t idx      = (peer_row * side_length) + peer_col;
+                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
                 {
                     continue;
                 }
 
-                size_t candidate_cell  = SIZE_MAX;
-                size_t candidate_count = 0;
-
-                const size_t row_start = box_row * block_length;
-                const size_t col_start = box_col * block_length;
-                for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
+                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
+                                            candidate_value))
                 {
-                    for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
-                    {
-                        const size_t row = row_start + row_offset;
-                        const size_t col = col_start + col_offset;
-                        const size_t idx = (row * side_length) + col;
-                        if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-                        {
-                            continue;
-                        }
-
-                        if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
-                                                    candidate_value))
-                        {
-                            continue;
-                        }
-
-                        candidate_cell = idx;
-                        candidate_count++;
-                        if (candidate_count > 1)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (candidate_count > 1)
-                    {
-                        break;
-                    }
+                    continue;
                 }
 
-                if (candidate_count == 1)
+                candidate_cell = idx;
+                candidate_count++;
+                if (candidate_count > 1)
                 {
-                    *cell_index = candidate_cell;
-                    *value      = candidate_value;
-                    return true;
+                    break;
                 }
             }
+
+            if (candidate_count > 1)
+            {
+                break;
+            }
+        }
+
+        if (candidate_count == 1)
+        {
+            *cell_index = candidate_cell;
+            *value      = candidate_value;
+            return true;
         }
     }
 
     return false;
 }
 
-static bool hpp_candidate_find_hidden_single(const hpp_candidate_state* state,
-                                             size_t*                    cell_index,
-                                             size_t*                    value)
+static bool hpp_candidate_find_hidden_single_around_cell(const hpp_candidate_state* state,
+                                                         size_t                     cell_index,
+                                                         size_t*                    hidden_cell,
+                                                         size_t*                    hidden_value)
 {
-    return hpp_candidate_find_hidden_single_in_rows(state, cell_index, value) ||
-           hpp_candidate_find_hidden_single_in_cols(state, cell_index, value) ||
-           hpp_candidate_find_hidden_single_in_boxes(state, cell_index, value);
+    const size_t side_length = state->board->side_length;
+    const size_t row         = cell_index / side_length;
+    const size_t col         = cell_index % side_length;
+
+    return hpp_candidate_find_hidden_single_in_row(state, row, hidden_cell, hidden_value) ||
+           hpp_candidate_find_hidden_single_in_col(state, col, hidden_cell, hidden_value) ||
+           hpp_candidate_find_hidden_single_in_box(state, row, col, hidden_cell, hidden_value);
+}
+
+static bool
+hpp_candidate_remove_value_from_cell(hpp_candidate_state* state, size_t cell_index, size_t value)
+{
+    if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
+    {
+        return true;
+    }
+
+    uint8_t* candidates = hpp_candidate_cell_at(state, cell_index);
+    if (!hpp_candidate_bit_test(candidates, value))
+    {
+        return true;
+    }
+
+    hpp_candidate_bit_clear(candidates, value);
+    if (state->candidate_counts[cell_index] == 0)
+    {
+        return false;
+    }
+
+    state->candidate_counts[cell_index]--;
+    if (state->candidate_counts[cell_index] == 0)
+    {
+        return false;
+    }
+
+    return hpp_candidate_modified_push(state, cell_index);
+}
+
+static bool
+hpp_candidate_apply_assignment_to_peers(hpp_candidate_state* state, size_t cell_index, size_t value)
+{
+    const size_t side_length  = state->board->side_length;
+    const size_t block_length = state->board->block_length;
+
+    const size_t row = cell_index / side_length;
+    const size_t col = cell_index % side_length;
+
+    for (size_t peer_col = 0; peer_col < side_length; ++peer_col)
+    {
+        if (peer_col == col)
+        {
+            continue;
+        }
+
+        if (!hpp_candidate_remove_value_from_cell(state, (row * side_length) + peer_col, value))
+        {
+            return false;
+        }
+    }
+
+    for (size_t peer_row = 0; peer_row < side_length; ++peer_row)
+    {
+        if (peer_row == row)
+        {
+            continue;
+        }
+
+        if (!hpp_candidate_remove_value_from_cell(state, (peer_row * side_length) + col, value))
+        {
+            return false;
+        }
+    }
+
+    const size_t row_start = (row / block_length) * block_length;
+    const size_t col_start = (col / block_length) * block_length;
+    for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
+    {
+        for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
+        {
+            const size_t peer_row = row_start + row_offset;
+            const size_t peer_col = col_start + col_offset;
+            if (peer_row == row || peer_col == col)
+            {
+                continue;
+            }
+
+            if (!hpp_candidate_remove_value_from_cell(
+                    state, (peer_row * side_length) + peer_col, value))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_state* state,
@@ -436,7 +581,34 @@ hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_stat
         return HPP_CANDIDATE_INIT_ERROR;
     }
 
+    state->candidate_counts = calloc(state->board->cell_count, sizeof(size_t));
+    if (state->candidate_counts == NULL)
+    {
+        hpp_candidate_state_destroy(state);
+        return HPP_CANDIDATE_INIT_ERROR;
+    }
+
+    state->modified_cells = malloc(state->board->cell_count * sizeof(size_t));
+    if (state->modified_cells == NULL)
+    {
+        hpp_candidate_state_destroy(state);
+        return HPP_CANDIDATE_INIT_ERROR;
+    }
+
+    state->modified_in_stack = calloc(state->board->cell_count, sizeof(uint8_t));
+    if (state->modified_in_stack == NULL)
+    {
+        hpp_candidate_state_destroy(state);
+        return HPP_CANDIDATE_INIT_ERROR;
+    }
+
     state->remaining_unassigned = hpp_candidate_count_unassigned_cells(state->board);
+    if (!hpp_candidate_initialize_cache_and_work_stack(state))
+    {
+        hpp_candidate_state_destroy(state);
+        return HPP_CANDIDATE_INIT_ERROR;
+    }
+
     return HPP_CANDIDATE_INIT_OK;
 }
 
@@ -458,7 +630,15 @@ void hpp_candidate_state_destroy(hpp_candidate_state* state)
     }
 
     free(state->candidates);
+    free(state->candidate_counts);
+    free(state->modified_cells);
+    free(state->modified_in_stack);
+
     state->candidates           = NULL;
+    state->candidate_counts     = NULL;
+    state->modified_cells       = NULL;
+    state->modified_in_stack    = NULL;
+    state->modified_count       = 0;
     state->remaining_unassigned = 0;
 }
 
@@ -487,7 +667,39 @@ bool hpp_candidate_state_clone(const hpp_candidate_state* source, hpp_candidate_
         return false;
     }
 
+    destination->candidate_counts = malloc(source->board->cell_count * sizeof(size_t));
+    if (destination->candidate_counts == NULL)
+    {
+        hpp_candidate_state_destroy(destination);
+        return false;
+    }
+
+    destination->modified_cells = malloc(source->board->cell_count * sizeof(size_t));
+    if (destination->modified_cells == NULL)
+    {
+        hpp_candidate_state_destroy(destination);
+        return false;
+    }
+
+    destination->modified_in_stack = malloc(source->board->cell_count * sizeof(uint8_t));
+    if (destination->modified_in_stack == NULL)
+    {
+        hpp_candidate_state_destroy(destination);
+        return false;
+    }
+
     memcpy(destination->candidates, source->candidates, candidate_buffer_size);
+    memcpy(destination->candidate_counts,
+           source->candidate_counts,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->modified_cells,
+           source->modified_cells,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->modified_in_stack,
+           source->modified_in_stack,
+           source->board->cell_count * sizeof(uint8_t));
+
+    destination->modified_count       = source->modified_count;
     destination->remaining_unassigned = source->remaining_unassigned;
     return true;
 }
@@ -498,6 +710,11 @@ bool hpp_candidate_state_assign(hpp_candidate_state*  state,
                                 hpp_candidate_budget* budget)
 {
     if (!hpp_candidate_budget_consume(budget))
+    {
+        return false;
+    }
+
+    if (value == BOARD_CELL_EMPTY || value > state->board->side_length)
     {
         return false;
     }
@@ -537,6 +754,18 @@ bool hpp_candidate_state_assign(hpp_candidate_state*  state,
     }
 
     memset(hpp_candidate_cell_at(state, cell_index), 0, HPP_CANDIDATE_BYTE_COUNT);
+    state->candidate_counts[cell_index] = 0;
+
+    if (!hpp_candidate_modified_push(state, cell_index))
+    {
+        hpp_validation_box_remove_value(state->constraints, row, col, value);
+        hpp_validation_col_remove_value(state->constraints, col, value);
+        hpp_validation_row_remove_value(state->constraints, row, value);
+        state->board->cells[cell_index] = BOARD_CELL_EMPTY;
+        (void)hpp_candidate_compute_cell(state, cell_index, NULL);
+        return false;
+    }
+
     if (state->remaining_unassigned > 0)
     {
         state->remaining_unassigned--;
@@ -547,40 +776,53 @@ bool hpp_candidate_state_assign(hpp_candidate_state*  state,
 
 bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state, hpp_candidate_budget* budget)
 {
-    while (true)
+    size_t modified_cell = SIZE_MAX;
+    while (hpp_candidate_modified_pop(state, &modified_cell))
     {
-        size_t naked_single_cell  = SIZE_MAX;
-        size_t naked_single_value = BOARD_CELL_EMPTY;
-        if (!hpp_candidate_refresh_candidates_and_find_naked_single(
-                state, &naked_single_cell, &naked_single_value))
+        if (state->board->cells[modified_cell] != BOARD_CELL_EMPTY)
         {
-            return false;
+            const size_t value = state->board->cells[modified_cell];
+            if (!hpp_candidate_apply_assignment_to_peers(state, modified_cell, value))
+            {
+                return false;
+            }
         }
 
-        if (naked_single_cell != SIZE_MAX)
+        if (state->board->cells[modified_cell] == BOARD_CELL_EMPTY)
         {
-            if (!hpp_candidate_state_assign(state, naked_single_cell, naked_single_value, budget))
+            const size_t candidate_count = state->candidate_counts[modified_cell];
+            if (candidate_count == 0)
             {
                 return false;
             }
 
-            continue;
+            if (candidate_count == 1)
+            {
+                const size_t single_value =
+                    hpp_candidate_find_single_value_for_cell(state, modified_cell);
+                if (single_value == BOARD_CELL_EMPTY ||
+                    !hpp_candidate_state_assign(state, modified_cell, single_value, budget))
+                {
+                    return false;
+                }
+
+                continue;
+            }
         }
 
         size_t hidden_single_cell  = SIZE_MAX;
         size_t hidden_single_value = BOARD_CELL_EMPTY;
-        if (hpp_candidate_find_hidden_single(state, &hidden_single_cell, &hidden_single_value))
+        if (hpp_candidate_find_hidden_single_around_cell(
+                state, modified_cell, &hidden_single_cell, &hidden_single_value))
         {
             if (!hpp_candidate_state_assign(state, hidden_single_cell, hidden_single_value, budget))
             {
                 return false;
             }
-
-            continue;
         }
-
-        return true;
     }
+
+    return true;
 }
 
 hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state*  state,
@@ -601,7 +843,7 @@ hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state
             continue;
         }
 
-        const size_t candidate_count = hpp_candidate_compute_cell(state, cell_index, NULL);
+        const size_t candidate_count = state->candidate_counts[cell_index];
         if (candidate_count == 0)
         {
             return HPP_CANDIDATE_BRANCH_CONFLICT;
@@ -652,5 +894,16 @@ void hpp_candidate_state_copy_solution(hpp_candidate_state*       destination,
     hpp_board_copy(destination->board, source->board);
     hpp_candidate_constraints_copy(destination->constraints, source->constraints);
     memcpy(destination->candidates, source->candidates, hpp_candidate_buffer_size(source->board));
+    memcpy(destination->candidate_counts,
+           source->candidate_counts,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->modified_cells,
+           source->modified_cells,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->modified_in_stack,
+           source->modified_in_stack,
+           source->board->cell_count * sizeof(uint8_t));
+
+    destination->modified_count       = source->modified_count;
     destination->remaining_unassigned = source->remaining_unassigned;
 }
