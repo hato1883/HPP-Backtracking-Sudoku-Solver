@@ -5,13 +5,13 @@
 #include "utils/timing.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
 
-static const char* const     default_input_file  = "board.dat";
-static const char* const     default_output_file = "answer.dat";
+static const char* const default_input_file  = "board.dat";
+static const char* const default_output_file = "answer.dat";
 
 /**
  * Parse command-line arguments.
@@ -21,12 +21,12 @@ static const char* const     default_output_file = "answer.dat";
  * @param enable_ui output flag for --ui mode.
  * @param moves_log_file output pointer for --moves-log FILE mode.
  */
-static void        parse_args(int          argc,
-                              char*        argv[],
-                              bool*        enable_ui,
-                              const char** moves_log_file,
-                              const char** input_file,
-                              bool*        enable_benchmark)
+static void parse_args(int          argc,
+                       char*        argv[],
+                       bool*        enable_ui,
+                       const char** moves_log_file,
+                       const char** input_file,
+                       bool*        enable_benchmark)
 {
     *enable_ui        = false;
     *moves_log_file   = NULL;
@@ -97,7 +97,6 @@ static void configure_logging_for_pipe(bool is_piped)
     }
 }
 
-
 /**
  * @brief Convert solver status to string representation.
  */
@@ -117,7 +116,6 @@ static const char* get_status_string(hpp_solver_status status)
             return "UNKNOWN";
     }
 }
-
 
 int main(int argc, char* argv[])
 {

@@ -1,8 +1,8 @@
 #ifndef SOLVER_SOLVER_H
 #define SOLVER_SOLVER_H
 
-#include "solver/sink.h"
 #include "data/board.h"
+#include "solver/sink.h"
 
 #include <stdint.h>
 
