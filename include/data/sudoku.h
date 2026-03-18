@@ -10,7 +10,7 @@
 #define DATA_SUDOKU_H
 
 #include "data/board.h"
-#include "data/validation.h"
+#include "solver/validation.h"
 
 #include <stdbool.h>
 #include <stddef.h>

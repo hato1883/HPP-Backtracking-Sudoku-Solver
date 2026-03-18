@@ -5,7 +5,7 @@
 
 #include "solver/solver.h"
 
-#include "solver/cactus_stack.h"
+#include "data/cactus_stack.h"
 #include "solver/candidate.h"
 
 #include <omp.h>
