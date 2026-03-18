@@ -11,7 +11,7 @@
 #define SOLVER_CANDIDATE_H
 
 #include "data/board.h"
-#include "data/validation.h"
+#include "solver/validation.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -38,8 +38,8 @@ typedef struct CandidateState
     hpp_board*                  board;       /**< Board snapshot for this node. */
     hpp_validation_constraints* constraints; /**< Row/col/box occupancy cache. */
 
-    uint8_t* candidates;       /**< Flat candidate bitvector buffer (per cell). */
-    size_t*  candidate_counts; /**< Number of candidates per cell. */
+    hpp_bitvector_word* candidates;       /**< Flat candidate bitvector buffer (per cell). */
+    size_t*             candidate_counts; /**< Number of candidates per cell. */
 
     size_t* row_cell_order; /**< Row-major order: row1 c1..cN, row2 c1..cN, ... */
     size_t* col_cell_order; /**< Column-major order: c1 r1..rN, c2 r1..rN, ... */

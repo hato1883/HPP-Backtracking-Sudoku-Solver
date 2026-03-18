@@ -1,5 +1,5 @@
 /**
- * @file solver/cactus_stack.h
+ * @file data/cactus_stack.h
  * @brief Ref-counted cactus stack for branch-local candidate states.
  *
  * A cactus stack is a parent-linked node chain where each node owns one

@@ -1,5 +1,5 @@
 /**
- * @file data/validation.h
+ * @file solver/validation.h
  * @brief Bitvector-backed row/column/box constraint tracking.
  *
  * Validation is implemented as three sets of bitvectors (rows, columns, boxes)
@@ -9,6 +9,7 @@
 #ifndef DATA_VALIDATION_H
 #define DATA_VALIDATION_H
 
+#include "data/bitvector.h"
 #include "data/board.h"
 
 #include <stdbool.h>
@@ -24,20 +25,12 @@
  */
 typedef struct ValidationConstraints
 {
-    // Row constraints: for each row, track which values are present
-    // size: side_length rows, each with 256 bits (32 uint8_t per row)
-    uint8_t** row_bitvectors;
+    hpp_bitvector_word* row_bitvectors; /**< Flat buffer: row-major unit order. */
+    hpp_bitvector_word* col_bitvectors; /**< Flat buffer: column-major unit order. */
+    hpp_bitvector_word* box_bitvectors; /**< Flat buffer: box-major unit order. */
 
-    // Column constraints: for each column, track which values are present
-    // size: side_length columns, each with 256 bits (32 uint8_t per column)
-    uint8_t** col_bitvectors;
-
-    // Box constraints: for each box, track which values are present
-    // size: (side_length / block_length)^2 boxes, each with 256 bits
-    uint8_t** box_bitvectors;
-
-    size_t side_length;
-    size_t block_length;
+    size_t side_length;  /**< Board side length (N). */
+    size_t block_length; /**< Sub-grid side length.  */
 } hpp_validation_constraints;
 
 /* =========================================================================

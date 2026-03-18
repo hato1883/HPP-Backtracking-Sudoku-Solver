@@ -1,85 +1,14 @@
 /**
  * @file solver/candidate.c
- * @brief Candidate-domain cache, propagation, and branching primitives.
+ * @brief Candidate-state lifecycle, cloning, and shared helpers.
  */
 
-#include "solver/candidate.h"
+#include "solver/candidate_internal.h"
 
-#include <limits.h>
 #include <stdlib.h>
-#include <string.h>
 
-/* =========================================================================
- * Internal Constants
- * ========================================================================= */
-
-enum
-{
-    HPP_CANDIDATE_VALUE_COUNT = UINT8_MAX + 1U,
-    HPP_CANDIDATE_BYTE_COUNT  = HPP_CANDIDATE_VALUE_COUNT / CHAR_BIT,
-};
-
-/* =========================================================================
- * Bitvector Utilities
- * ========================================================================= */
-
-static inline void hpp_candidate_bit_position(size_t value, size_t* byte_idx, uint8_t* bit_offset)
-{
-    *byte_idx   = value / CHAR_BIT;
-    *bit_offset = (uint8_t)(value % CHAR_BIT);
-}
-
-static inline void hpp_candidate_bit_set(uint8_t* bitvector, size_t value)
-{
-    size_t  byte_idx   = 0;
-    uint8_t bit_offset = 0;
-    hpp_candidate_bit_position(value, &byte_idx, &bit_offset);
-    bitvector[byte_idx] |= (uint8_t)(1U << bit_offset);
-}
-
-static inline void hpp_candidate_bit_clear(uint8_t* bitvector, size_t value)
-{
-    size_t  byte_idx   = 0;
-    uint8_t bit_offset = 0;
-    hpp_candidate_bit_position(value, &byte_idx, &bit_offset);
-    bitvector[byte_idx] &= (uint8_t)~(1U << bit_offset);
-}
-
-static inline bool hpp_candidate_bit_test(const uint8_t* bitvector, size_t value)
-{
-    size_t  byte_idx   = 0;
-    uint8_t bit_offset = 0;
-    hpp_candidate_bit_position(value, &byte_idx, &bit_offset);
-    return (bitvector[byte_idx] & (uint8_t)(1U << bit_offset)) != 0;
-}
-
-static inline uint8_t* hpp_candidate_cell_at(hpp_candidate_state* state, size_t cell_index)
-{
-    return state->candidates + (cell_index * HPP_CANDIDATE_BYTE_COUNT);
-}
-
-static inline const uint8_t* hpp_candidate_cell_at_const(const hpp_candidate_state* state,
-                                                         size_t                     cell_index)
-{
-    return state->candidates + (cell_index * HPP_CANDIDATE_BYTE_COUNT);
-}
-
-static inline size_t hpp_candidate_buffer_size(const hpp_board* board)
-{
-    return board->cell_count * HPP_CANDIDATE_BYTE_COUNT;
-}
-
-static inline size_t hpp_candidate_box_index(const hpp_board* board, size_t row, size_t col)
-{
-    return ((row / board->block_length) * board->block_length) + (col / board->block_length);
-}
-
-/* =========================================================================
- * Constraint and State Setup
- * ========================================================================= */
-
-static bool hpp_candidate_validate_initial_board(const hpp_board*            board,
-                                                 hpp_validation_constraints* constraints)
+bool hpp_candidate_validate_initial_board(const hpp_board*            board,
+                                          hpp_validation_constraints* constraints)
 {
     if (board == NULL || board->cells == NULL || board->side_length == 0 ||
         board->block_length == 0 || board->cell_count != board->side_length * board->side_length)
@@ -96,7 +25,7 @@ static bool hpp_candidate_validate_initial_board(const hpp_board*            boa
     return hpp_validation_constraints_init_from_board(constraints, board);
 }
 
-static hpp_validation_constraints*
+hpp_validation_constraints*
 hpp_candidate_constraints_clone(const hpp_validation_constraints* source)
 {
     if (source == NULL)
@@ -111,37 +40,121 @@ hpp_candidate_constraints_clone(const hpp_validation_constraints* source)
         return NULL;
     }
 
-    for (size_t i = 0; i < source->side_length; ++i)
-    {
-        memcpy(clone->row_bitvectors[i], source->row_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
-        memcpy(clone->col_bitvectors[i], source->col_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
-    }
+    const size_t side_bytes     = source->side_length * HPP_CANDIDATE_CELL_BYTES;
+    const size_t boxes_per_side = source->side_length / source->block_length;
+    const size_t box_count      = boxes_per_side * boxes_per_side;
+    const size_t box_bytes      = box_count * HPP_CANDIDATE_CELL_BYTES;
 
-    const size_t box_side  = source->side_length / source->block_length;
-    const size_t box_count = box_side * box_side;
-    for (size_t i = 0; i < box_count; ++i)
-    {
-        memcpy(clone->box_bitvectors[i], source->box_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
-    }
+    memcpy(clone->row_bitvectors, source->row_bitvectors, side_bytes);
+    memcpy(clone->col_bitvectors, source->col_bitvectors, side_bytes);
+    memcpy(clone->box_bitvectors, source->box_bitvectors, box_bytes);
 
     return clone;
 }
 
-static void hpp_candidate_constraints_copy(hpp_validation_constraints*       destination,
-                                           const hpp_validation_constraints* source)
+void hpp_candidate_constraints_copy(hpp_validation_constraints*       destination,
+                                    const hpp_validation_constraints* source)
 {
-    for (size_t i = 0; i < source->side_length; ++i)
+    const size_t side_bytes     = source->side_length * HPP_CANDIDATE_CELL_BYTES;
+    const size_t boxes_per_side = source->side_length / source->block_length;
+    const size_t box_count      = boxes_per_side * boxes_per_side;
+    const size_t box_bytes      = box_count * HPP_CANDIDATE_CELL_BYTES;
+
+    memcpy(destination->row_bitvectors, source->row_bitvectors, side_bytes);
+    memcpy(destination->col_bitvectors, source->col_bitvectors, side_bytes);
+    memcpy(destination->box_bitvectors, source->box_bitvectors, box_bytes);
+}
+
+bool hpp_candidate_build_spatial_orders(hpp_candidate_state* state)
+{
+    const size_t side_length  = state->board->side_length;
+    const size_t cell_count   = state->board->cell_count;
+    const size_t block_length = state->board->block_length;
+
+    state->row_cell_order = malloc(cell_count * sizeof(size_t));
+    state->col_cell_order = malloc(cell_count * sizeof(size_t));
+    state->box_cell_order = malloc(cell_count * sizeof(size_t));
+    if (state->row_cell_order == NULL || state->col_cell_order == NULL ||
+        state->box_cell_order == NULL)
     {
-        memcpy(destination->row_bitvectors[i], source->row_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
-        memcpy(destination->col_bitvectors[i], source->col_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
+        hpp_candidate_destroy_spatial_orders(state);
+        return false;
     }
 
-    const size_t box_side  = source->side_length / source->block_length;
-    const size_t box_count = box_side * box_side;
-    for (size_t i = 0; i < box_count; ++i)
+    size_t write_idx = 0;
+    // Row order: r1c1..r1cN, r2c1..r2cN, ...
+    for (size_t row = 0; row < side_length; ++row)
     {
-        memcpy(destination->box_bitvectors[i], source->box_bitvectors[i], HPP_CANDIDATE_BYTE_COUNT);
+        for (size_t col = 0; col < side_length; ++col)
+        {
+            state->row_cell_order[write_idx++] = (row * side_length) + col;
+        }
     }
+
+    write_idx = 0;
+    // Column order: r1c1..rNc1, r1c2..rNc2, ...
+    for (size_t col = 0; col < side_length; ++col)
+    {
+        for (size_t row = 0; row < side_length; ++row)
+        {
+            state->col_cell_order[write_idx++] = (row * side_length) + col;
+        }
+    }
+
+    write_idx = 0;
+    // Box order: top-left to bottom-right inside each box, then next box.
+    for (size_t box_row = 0; box_row < block_length; ++box_row)
+    {
+        for (size_t box_col = 0; box_col < block_length; ++box_col)
+        {
+            const size_t row_start = box_row * block_length;
+            const size_t col_start = box_col * block_length;
+
+            for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
+            {
+                for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
+                {
+                    const size_t row                   = row_start + row_offset;
+                    const size_t col                   = col_start + col_offset;
+                    state->box_cell_order[write_idx++] = (row * side_length) + col;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool hpp_candidate_clone_spatial_orders(const hpp_candidate_state* source,
+                                        hpp_candidate_state*       destination)
+{
+    const size_t cell_bytes = source->board->cell_count * sizeof(size_t);
+
+    destination->row_cell_order = malloc(cell_bytes);
+    destination->col_cell_order = malloc(cell_bytes);
+    destination->box_cell_order = malloc(cell_bytes);
+    if (destination->row_cell_order == NULL || destination->col_cell_order == NULL ||
+        destination->box_cell_order == NULL)
+    {
+        hpp_candidate_destroy_spatial_orders(destination);
+        return false;
+    }
+
+    memcpy(destination->row_cell_order, source->row_cell_order, cell_bytes);
+    memcpy(destination->col_cell_order, source->col_cell_order, cell_bytes);
+    memcpy(destination->box_cell_order, source->box_cell_order, cell_bytes);
+    return true;
+}
+
+void hpp_candidate_destroy_spatial_orders(hpp_candidate_state* state)
+{
+    free(state->row_cell_order);
+    free(state->col_cell_order);
+    free(state->box_cell_order);
+
+    state->row_cell_order = NULL;
+    state->col_cell_order = NULL;
+    state->box_cell_order = NULL;
 }
 
 static size_t hpp_candidate_count_unassigned_cells(const hpp_board* board)
@@ -159,7 +172,7 @@ static size_t hpp_candidate_count_unassigned_cells(const hpp_board* board)
     return unassigned_count;
 }
 
-static bool hpp_candidate_modified_push(hpp_candidate_state* state, size_t cell_index)
+bool hpp_candidate_modified_push(hpp_candidate_state* state, size_t cell_index)
 {
     if (state->modified_cells == NULL || state->modified_in_stack == NULL ||
         cell_index >= state->board->cell_count)
@@ -182,7 +195,7 @@ static bool hpp_candidate_modified_push(hpp_candidate_state* state, size_t cell_
     return true;
 }
 
-static bool hpp_candidate_modified_pop(hpp_candidate_state* state, size_t* cell_index)
+bool hpp_candidate_modified_pop(hpp_candidate_state* state, size_t* cell_index)
 {
     if (state->modified_count == 0)
     {
@@ -195,16 +208,15 @@ static bool hpp_candidate_modified_pop(hpp_candidate_state* state, size_t* cell_
     return true;
 }
 
-static void hpp_candidate_modified_reset(hpp_candidate_state* state)
+void hpp_candidate_modified_reset(hpp_candidate_state* state)
 {
     state->modified_count = 0;
     memset(state->modified_in_stack, 0, state->board->cell_count * sizeof(uint8_t));
 }
 
-static size_t hpp_candidate_find_single_value_for_cell(const hpp_candidate_state* state,
-                                                       size_t                     cell_index)
+size_t hpp_candidate_find_single_value_for_cell(const hpp_candidate_state* state, size_t cell_index)
 {
-    const uint8_t* candidates = hpp_candidate_cell_at_const(state, cell_index);
+    const hpp_bitvector_word* candidates = hpp_candidate_cell_at_const(state, cell_index);
     for (size_t value = 1; value <= state->board->side_length; ++value)
     {
         if (hpp_candidate_bit_test(candidates, value))
@@ -216,8 +228,8 @@ static size_t hpp_candidate_find_single_value_for_cell(const hpp_candidate_state
     return BOARD_CELL_EMPTY;
 }
 
-static size_t hpp_candidate_ac3_singleton_value_for_cell(const hpp_candidate_state* state,
-                                                         size_t                     cell_index)
+size_t hpp_candidate_ac3_singleton_value_for_cell(const hpp_candidate_state* state,
+                                                  size_t                     cell_index)
 {
     const hpp_cell assigned_value = state->board->cells[cell_index];
     if (assigned_value != BOARD_CELL_EMPTY)
@@ -233,11 +245,11 @@ static size_t hpp_candidate_ac3_singleton_value_for_cell(const hpp_candidate_sta
     return hpp_candidate_find_single_value_for_cell(state, cell_index);
 }
 
-static size_t
+size_t
 hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t* single_value)
 {
-    uint8_t* cell_candidates = hpp_candidate_cell_at(state, cell_index);
-    memset(cell_candidates, 0, HPP_CANDIDATE_BYTE_COUNT);
+    hpp_bitvector_word* cell_candidates = hpp_candidate_cell_at(state, cell_index);
+    memset(cell_candidates, 0, HPP_CANDIDATE_CELL_BYTES);
 
     if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
     {
@@ -249,12 +261,12 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
         return 0;
     }
 
-    const size_t   row     = cell_index / state->board->side_length;
-    const size_t   col     = cell_index % state->board->side_length;
-    const size_t   box_idx = hpp_candidate_box_index(state->board, row, col);
-    const uint8_t* row_bv  = state->constraints->row_bitvectors[row];
-    const uint8_t* col_bv  = state->constraints->col_bitvectors[col];
-    const uint8_t* box_bv  = state->constraints->box_bitvectors[box_idx];
+    const size_t              row     = cell_index / state->board->side_length;
+    const size_t              col     = cell_index % state->board->side_length;
+    const size_t              box_idx = hpp_candidate_box_index(state->board, row, col);
+    const hpp_bitvector_word* row_bv  = hpp_candidate_row_bits(state->constraints, row);
+    const hpp_bitvector_word* col_bv  = hpp_candidate_col_bits(state->constraints, col);
+    const hpp_bitvector_word* box_bv  = hpp_candidate_box_bits(state->constraints, box_idx);
 
     size_t count      = 0;
     size_t last_value = BOARD_CELL_EMPTY;
@@ -280,7 +292,7 @@ hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t
     return count;
 }
 
-static bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* state)
+bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* state)
 {
     hpp_candidate_modified_reset(state);
 
@@ -292,7 +304,7 @@ static bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* s
         }
         else
         {
-            memset(hpp_candidate_cell_at(state, idx), 0, HPP_CANDIDATE_BYTE_COUNT);
+            memset(hpp_candidate_cell_at(state, idx), 0, HPP_CANDIDATE_CELL_BYTES);
             state->candidate_counts[idx] = 0;
         }
 
@@ -304,292 +316,6 @@ static bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* s
 
     return true;
 }
-
-/* =========================================================================
- * Hidden-Single Detection
- * ========================================================================= */
-
-static bool hpp_candidate_find_hidden_single_in_row(const hpp_candidate_state* state,
-                                                    size_t                     row,
-                                                    size_t*                    cell_index,
-                                                    size_t*                    value)
-{
-    const size_t   side_length = state->board->side_length;
-    const uint8_t* row_bv      = state->constraints->row_bitvectors[row];
-
-    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
-    {
-        if (hpp_candidate_bit_test(row_bv, candidate_value))
-        {
-            continue;
-        }
-
-        size_t candidate_cell  = SIZE_MAX;
-        size_t candidate_count = 0;
-        for (size_t col = 0; col < side_length; ++col)
-        {
-            const size_t idx = (row * side_length) + col;
-            if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-            {
-                continue;
-            }
-
-            if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx), candidate_value))
-            {
-                continue;
-            }
-
-            candidate_cell = idx;
-            candidate_count++;
-            if (candidate_count > 1)
-            {
-                break;
-            }
-        }
-
-        if (candidate_count == 1)
-        {
-            *cell_index = candidate_cell;
-            *value      = candidate_value;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_candidate_find_hidden_single_in_col(const hpp_candidate_state* state,
-                                                    size_t                     col,
-                                                    size_t*                    cell_index,
-                                                    size_t*                    value)
-{
-    const size_t   side_length = state->board->side_length;
-    const uint8_t* col_bv      = state->constraints->col_bitvectors[col];
-
-    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
-    {
-        if (hpp_candidate_bit_test(col_bv, candidate_value))
-        {
-            continue;
-        }
-
-        size_t candidate_cell  = SIZE_MAX;
-        size_t candidate_count = 0;
-        for (size_t row = 0; row < side_length; ++row)
-        {
-            const size_t idx = (row * side_length) + col;
-            if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-            {
-                continue;
-            }
-
-            if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx), candidate_value))
-            {
-                continue;
-            }
-
-            candidate_cell = idx;
-            candidate_count++;
-            if (candidate_count > 1)
-            {
-                break;
-            }
-        }
-
-        if (candidate_count == 1)
-        {
-            *cell_index = candidate_cell;
-            *value      = candidate_value;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_candidate_find_hidden_single_in_box(
-    const hpp_candidate_state* state, size_t row, size_t col, size_t* cell_index, size_t* value)
-{
-    const size_t side_length  = state->board->side_length;
-    const size_t block_length = state->board->block_length;
-
-    const size_t   box_row = row / block_length;
-    const size_t   box_col = col / block_length;
-    const size_t   box_idx = (box_row * block_length) + box_col;
-    const uint8_t* box_bv  = state->constraints->box_bitvectors[box_idx];
-
-    for (size_t candidate_value = 1; candidate_value <= side_length; ++candidate_value)
-    {
-        if (hpp_candidate_bit_test(box_bv, candidate_value))
-        {
-            continue;
-        }
-
-        size_t candidate_cell  = SIZE_MAX;
-        size_t candidate_count = 0;
-
-        const size_t row_start = box_row * block_length;
-        const size_t col_start = box_col * block_length;
-        for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
-        {
-            for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
-            {
-                const size_t peer_row = row_start + row_offset;
-                const size_t peer_col = col_start + col_offset;
-                const size_t idx      = (peer_row * side_length) + peer_col;
-                if (state->board->cells[idx] != BOARD_CELL_EMPTY)
-                {
-                    continue;
-                }
-
-                if (!hpp_candidate_bit_test(hpp_candidate_cell_at_const(state, idx),
-                                            candidate_value))
-                {
-                    continue;
-                }
-
-                candidate_cell = idx;
-                candidate_count++;
-                if (candidate_count > 1)
-                {
-                    break;
-                }
-            }
-
-            if (candidate_count > 1)
-            {
-                break;
-            }
-        }
-
-        if (candidate_count == 1)
-        {
-            *cell_index = candidate_cell;
-            *value      = candidate_value;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool hpp_candidate_find_hidden_single_around_cell(const hpp_candidate_state* state,
-                                                         size_t                     cell_index,
-                                                         size_t*                    hidden_cell,
-                                                         size_t*                    hidden_value)
-{
-    const size_t side_length = state->board->side_length;
-    const size_t row         = cell_index / side_length;
-    const size_t col         = cell_index % side_length;
-
-    return hpp_candidate_find_hidden_single_in_row(state, row, hidden_cell, hidden_value) ||
-           hpp_candidate_find_hidden_single_in_col(state, col, hidden_cell, hidden_value) ||
-           hpp_candidate_find_hidden_single_in_box(state, row, col, hidden_cell, hidden_value);
-}
-
-/* =========================================================================
- * AC-3 Style Propagation
- * ========================================================================= */
-
-static bool
-hpp_candidate_remove_value_from_cell(hpp_candidate_state* state, size_t cell_index, size_t value)
-{
-    if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
-    {
-        return true;
-    }
-
-    uint8_t* candidates = hpp_candidate_cell_at(state, cell_index);
-    if (!hpp_candidate_bit_test(candidates, value))
-    {
-        return true;
-    }
-
-    hpp_candidate_bit_clear(candidates, value);
-    if (state->candidate_counts[cell_index] == 0)
-    {
-        return false;
-    }
-
-    state->candidate_counts[cell_index]--;
-    if (state->candidate_counts[cell_index] == 0)
-    {
-        return false;
-    }
-
-    return hpp_candidate_modified_push(state, cell_index);
-}
-
-static bool hpp_candidate_ac3_propagate_singleton_to_peers(hpp_candidate_state* state,
-                                                           size_t               cell_index)
-{
-    // AC-3 reduce step for Sudoku's binary not-equal constraints:
-    // if this cell is singleton, remove that value from all peer domains.
-    const size_t value = hpp_candidate_ac3_singleton_value_for_cell(state, cell_index);
-    if (value == BOARD_CELL_EMPTY)
-    {
-        return true;
-    }
-
-    const size_t side_length  = state->board->side_length;
-    const size_t block_length = state->board->block_length;
-
-    const size_t row = cell_index / side_length;
-    const size_t col = cell_index % side_length;
-
-    for (size_t peer_col = 0; peer_col < side_length; ++peer_col)
-    {
-        if (peer_col == col)
-        {
-            continue;
-        }
-
-        if (!hpp_candidate_remove_value_from_cell(state, (row * side_length) + peer_col, value))
-        {
-            return false;
-        }
-    }
-
-    for (size_t peer_row = 0; peer_row < side_length; ++peer_row)
-    {
-        if (peer_row == row)
-        {
-            continue;
-        }
-
-        if (!hpp_candidate_remove_value_from_cell(state, (peer_row * side_length) + col, value))
-        {
-            return false;
-        }
-    }
-
-    const size_t row_start = (row / block_length) * block_length;
-    const size_t col_start = (col / block_length) * block_length;
-    for (size_t row_offset = 0; row_offset < block_length; ++row_offset)
-    {
-        for (size_t col_offset = 0; col_offset < block_length; ++col_offset)
-        {
-            const size_t peer_row = row_start + row_offset;
-            const size_t peer_col = col_start + col_offset;
-            if (peer_row == row || peer_col == col)
-            {
-                continue;
-            }
-
-            if (!hpp_candidate_remove_value_from_cell(
-                    state, (peer_row * side_length) + peer_col, value))
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-/* =========================================================================
- * Public API
- * ========================================================================= */
 
 hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_state* state,
                                                               const hpp_board*     source)
@@ -616,7 +342,8 @@ hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_stat
         return HPP_CANDIDATE_INIT_INVALID_BOARD;
     }
 
-    state->candidates = calloc(hpp_candidate_buffer_size(state->board), sizeof(uint8_t));
+    state->candidates =
+        calloc(state->board->cell_count * HPP_CANDIDATE_WORD_COUNT, sizeof(hpp_bitvector_word));
     if (state->candidates == NULL)
     {
         hpp_candidate_state_destroy(state);
@@ -625,6 +352,12 @@ hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_stat
 
     state->candidate_counts = calloc(state->board->cell_count, sizeof(size_t));
     if (state->candidate_counts == NULL)
+    {
+        hpp_candidate_state_destroy(state);
+        return HPP_CANDIDATE_INIT_ERROR;
+    }
+
+    if (!hpp_candidate_build_spatial_orders(state))
     {
         hpp_candidate_state_destroy(state);
         return HPP_CANDIDATE_INIT_ERROR;
@@ -673,6 +406,7 @@ void hpp_candidate_state_destroy(hpp_candidate_state* state)
 
     free(state->candidates);
     free(state->candidate_counts);
+    hpp_candidate_destroy_spatial_orders(state);
     free(state->modified_cells);
     free(state->modified_in_stack);
 
@@ -711,6 +445,12 @@ bool hpp_candidate_state_clone(const hpp_candidate_state* source, hpp_candidate_
 
     destination->candidate_counts = malloc(source->board->cell_count * sizeof(size_t));
     if (destination->candidate_counts == NULL)
+    {
+        hpp_candidate_state_destroy(destination);
+        return false;
+    }
+
+    if (!hpp_candidate_clone_spatial_orders(source, destination))
     {
         hpp_candidate_state_destroy(destination);
         return false;
@@ -787,7 +527,7 @@ bool hpp_candidate_state_assign(hpp_candidate_state* state, size_t cell_index, s
         return false;
     }
 
-    memset(hpp_candidate_cell_at(state, cell_index), 0, HPP_CANDIDATE_BYTE_COUNT);
+    memset(hpp_candidate_cell_at(state, cell_index), 0, HPP_CANDIDATE_CELL_BYTES);
     state->candidate_counts[cell_index] = 0;
 
     if (!hpp_candidate_modified_push(state, cell_index))
@@ -808,117 +548,6 @@ bool hpp_candidate_state_assign(hpp_candidate_state* state, size_t cell_index, s
     return true;
 }
 
-bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state)
-{
-    size_t modified_cell = SIZE_MAX;
-    while (hpp_candidate_modified_pop(state, &modified_cell))
-    {
-        if (!hpp_candidate_ac3_propagate_singleton_to_peers(state, modified_cell))
-        {
-            return false;
-        }
-
-        if (state->board->cells[modified_cell] == BOARD_CELL_EMPTY)
-        {
-            const size_t candidate_count = state->candidate_counts[modified_cell];
-            if (candidate_count == 0)
-            {
-                return false;
-            }
-
-            if (candidate_count == 1)
-            {
-                const size_t single_value =
-                    hpp_candidate_find_single_value_for_cell(state, modified_cell);
-                if (single_value == BOARD_CELL_EMPTY ||
-                    !hpp_candidate_state_assign(state, modified_cell, single_value))
-                {
-                    return false;
-                }
-
-                continue;
-            }
-        }
-
-        size_t hidden_single_cell  = SIZE_MAX;
-        size_t hidden_single_value = BOARD_CELL_EMPTY;
-        if (hpp_candidate_find_hidden_single_around_cell(
-                state, modified_cell, &hidden_single_cell, &hidden_single_value))
-        {
-            if (!hpp_candidate_state_assign(state, hidden_single_cell, hidden_single_value))
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state*  state,
-                                                             hpp_candidate_branch* branch)
-{
-    if (state->remaining_unassigned == 0)
-    {
-        return HPP_CANDIDATE_BRANCH_COMPLETE;
-    }
-
-    // Minimum Remaining Values (MRV): branch on the tightest domain first.
-    size_t best_cell  = SIZE_MAX;
-    size_t best_count = SIZE_MAX;
-
-    for (size_t cell_index = 0; cell_index < state->board->cell_count; ++cell_index)
-    {
-        if (state->board->cells[cell_index] != BOARD_CELL_EMPTY)
-        {
-            continue;
-        }
-
-        const size_t candidate_count = state->candidate_counts[cell_index];
-        if (candidate_count == 0)
-        {
-            return HPP_CANDIDATE_BRANCH_CONFLICT;
-        }
-
-        if (candidate_count < best_count)
-        {
-            best_count = candidate_count;
-            best_cell  = cell_index;
-
-            if (best_count == 2)
-            {
-                break;
-            }
-        }
-    }
-
-    if (best_cell == SIZE_MAX)
-    {
-        return HPP_CANDIDATE_BRANCH_CONFLICT;
-    }
-
-    branch->cell_index  = best_cell;
-    branch->value_count = 0;
-
-    const uint8_t* best_candidates = hpp_candidate_cell_at_const(state, best_cell);
-    for (size_t value = 1; value <= state->board->side_length; ++value)
-    {
-        if (!hpp_candidate_bit_test(best_candidates, value))
-        {
-            continue;
-        }
-
-        branch->values[branch->value_count++] = value;
-    }
-
-    return (branch->value_count == 0) ? HPP_CANDIDATE_BRANCH_CONFLICT : HPP_CANDIDATE_BRANCH_READY;
-}
-
-bool hpp_candidate_state_is_complete(const hpp_candidate_state* state)
-{
-    return state->remaining_unassigned == 0;
-}
-
 void hpp_candidate_state_copy_solution(hpp_candidate_state*       destination,
                                        const hpp_candidate_state* source)
 {
@@ -927,6 +556,15 @@ void hpp_candidate_state_copy_solution(hpp_candidate_state*       destination,
     memcpy(destination->candidates, source->candidates, hpp_candidate_buffer_size(source->board));
     memcpy(destination->candidate_counts,
            source->candidate_counts,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->row_cell_order,
+           source->row_cell_order,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->col_cell_order,
+           source->col_cell_order,
+           source->board->cell_count * sizeof(size_t));
+    memcpy(destination->box_cell_order,
+           source->box_cell_order,
            source->board->cell_count * sizeof(size_t));
     memcpy(destination->modified_cells,
            source->modified_cells,

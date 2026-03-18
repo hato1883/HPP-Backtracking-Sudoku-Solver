@@ -1,5 +1,5 @@
 #include "data/board.h"
-#include "solver/cactus_stack.h"
+#include "data/cactus_stack.h"
 
 #include <CUnit/Basic.h>
 #include <CUnit/CUnit.h>

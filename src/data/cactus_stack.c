@@ -1,9 +1,9 @@
 /**
- * @file solver/cactus_stack.c
+ * @file data/cactus_stack.c
  * @brief Cactus-node reference counting and stack primitives.
  */
 
-#include "solver/cactus_stack.h"
+#include "data/cactus_stack.h"
 
 #include <stdlib.h>
 
