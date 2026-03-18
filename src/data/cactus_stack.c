@@ -8,25 +8,15 @@
 #include <stdlib.h>
 
 /* =========================================================================
- * Internal Node Helpers
+ * Forward Declarations
  * ========================================================================= */
 
-static hpp_cactus_node* hpp_cactus_node_create(void)
-{
-    hpp_cactus_node* node = calloc(1, sizeof(hpp_cactus_node));
-    if (node != NULL)
-    {
-        atomic_init(&node->ref_count, 1U);
-    }
+static hpp_cactus_node* hpp_cactus_node_create(void);
+static void             hpp_cactus_node_destroy(hpp_cactus_node* node);
 
-    return node;
-}
-
-static void hpp_cactus_node_destroy(hpp_cactus_node* node)
-{
-    hpp_candidate_state_destroy(&node->state);
-    free(node);
-}
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
 
 void hpp_cactus_stack_init(hpp_cactus_stack* stack)
 {
@@ -238,4 +228,45 @@ const hpp_candidate_state* hpp_cactus_stack_top_state_const(const hpp_cactus_sta
 size_t hpp_cactus_stack_depth(const hpp_cactus_stack* stack)
 {
     return (stack == NULL) ? 0 : stack->depth;
+}
+
+/* =========================================================================
+ * Internal Helpers
+ * ========================================================================= */
+
+/**
+ * @brief Allocate one cactus node with initialized reference count.
+ *
+ * @note Node memory is zeroed via `calloc`, so parent/state pointers start
+ *       in a known null state before initialization by callers.
+ * @pre None.
+ * @post On success, returned node has `ref_count == 1` and zeroed payload.
+ *
+ * @return Newly allocated node, or `NULL` on allocation failure.
+ */
+static hpp_cactus_node* hpp_cactus_node_create(void)
+{
+    hpp_cactus_node* node = calloc(1, sizeof(hpp_cactus_node));
+    if (node != NULL)
+    {
+        atomic_init(&node->ref_count, 1U);
+    }
+
+    return node;
+}
+
+/**
+ * @brief Destroy one cactus node and its owned candidate state.
+ *
+ * @note This function assumes the caller already proved exclusive ownership
+ *       (refcount reached zero) and will not touch `node` afterwards.
+ * @pre `node != NULL` and no remaining external references exist.
+ * @post Candidate state storage is released and node memory is freed.
+ *
+ * @param node Node to destroy.
+ */
+static void hpp_cactus_node_destroy(hpp_cactus_node* node)
+{
+    hpp_candidate_state_destroy(&node->state);
+    free(node);
 }

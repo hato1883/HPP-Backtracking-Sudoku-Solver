@@ -10,6 +10,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+/* =========================================================================
+ * File-Local State
+ * ========================================================================= */
+
 static hpp_log_level global_log_level = LOG_LEVEL;
 static int           global_verbosity = LOG_VERBOSITY;
 
@@ -21,6 +25,16 @@ static const char* level_colors[] = {COLOR_YELLOW, // DEBUG
                                      COLOR_RED,    // ERROR
                                      COLOR_RESET}; // NONE
 
+/* =========================================================================
+ * Forward Declarations
+ * ========================================================================= */
+
+// No internal helpers in this file.
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
+
 void log_message(
     hpp_log_level level, const char* file, int line, const char* func, const char* fmt, ...)
 {
@@ -28,6 +42,7 @@ void log_message(
     {
         return;
     }
+
     va_list args;
     va_start(args, fmt);
 
@@ -78,5 +93,6 @@ void logger_set_verbosity(int verbosity)
     {
         verbosity = 2;
     }
+
     global_verbosity = verbosity;
 }

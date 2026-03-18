@@ -5,6 +5,16 @@
 
 #include "solver/candidate_internal.h"
 
+/* =========================================================================
+ * Forward Declarations
+ * ========================================================================= */
+
+// No internal helpers in this file.
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
+
 hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state*  state,
                                                              hpp_candidate_branch* branch)
 {

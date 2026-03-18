@@ -7,16 +7,15 @@
 
 #include <stdlib.h>
 
-static size_t hpp_sudoku_infer_block_length(size_t side_length)
-{
-    size_t block_length = 1;
-    while (block_length * block_length < side_length)
-    {
-        block_length++;
-    }
+/* =========================================================================
+ * Forward Declarations
+ * ========================================================================= */
 
-    return (block_length * block_length == side_length) ? block_length : 0;
-}
+static size_t hpp_sudoku_infer_block_length(size_t side_length);
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
 
 hpp_sudoku* hpp_sudoku_create(size_t side_length, size_t block_length)
 {
@@ -269,4 +268,30 @@ bool hpp_sudoku_is_valid(const hpp_sudoku* sudoku)
     }
 
     return true;
+}
+
+/* =========================================================================
+ * Internal Helpers
+ * ========================================================================= */
+
+/**
+ * @brief Infer square block length from side length.
+ *
+ * @note Uses an integer monotonic scan (`1,2,3,...`) instead of floating
+ *       point math to avoid rounding issues and keep behavior deterministic.
+ * @pre `side_length > 0` for meaningful Sudoku dimensions.
+ * @post Returns either an exact integer root or `0` for non-square values.
+ *
+ * @param side_length Board side length to evaluate.
+ * @return Inferred block length, or `0` when no integral square root exists.
+ */
+static size_t hpp_sudoku_infer_block_length(size_t side_length)
+{
+    size_t block_length = 1;
+    while (block_length * block_length < side_length)
+    {
+        block_length++;
+    }
+
+    return (block_length * block_length == side_length) ? block_length : 0;
 }

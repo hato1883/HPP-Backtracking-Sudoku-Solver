@@ -1,4 +1,3 @@
-
 /**
  * @file parser/parser.c
  * @brief Binary board parser and serializer implementation.
@@ -13,8 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* =========================================================================
+ * Forward Declarations
+ * ========================================================================= */
+
 static void parse_header(FILE* file, unsigned char* base, unsigned char* side);
 static void parse_board_cells(FILE* file, hpp_board* board);
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
 
 hpp_board* parse_file(const char* file_name)
 {
@@ -46,70 +53,6 @@ hpp_board* parse_file(const char* file_name)
     return board;
 }
 
-/**
- * @brief Read and validate the board header (block length and side length).
- *
- * @pre `file`, `base`, and `side` are non-NULL.
- * @post On success, `*base` and `*side` contain validated header values.
- *
- * @param file File pointer to read from.
- * @param base Output parameter for the block length.
- * @param side Output parameter for the side value.
- */
-static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
-{
-    if (fread(base, sizeof(unsigned char), 1, file) != 1 ||
-        fread(side, sizeof(unsigned char), 1, file) != 1)
-    {
-        LOG_ERROR("Failed to read header bytes.");
-        fclose(file);
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        LOG_INFO("Read value %hhu and %hhu", *base, *side);
-    }
-
-    if (*base == 0)
-    {
-        LOG_ERROR("Invalid value for size: %hhu", *base);
-        fclose(file);
-        exit(EXIT_FAILURE);
-    }
-
-    if (*side == 0)
-    {
-        LOG_ERROR("Invalid value for side count: %hhu", *side);
-        fclose(file);
-        exit(EXIT_FAILURE);
-    }
-}
-
-/**
- * @brief Read board cells from file and populate the board.
- *
- * @pre `file != NULL` and `board` points to allocated cell storage.
- * @post On success, `board->cells` is fully populated from stream data.
- *
- * @param file File pointer to read from.
- * @param board Board structure to populate.
- */
-static void parse_board_cells(FILE* file, hpp_board* board)
-{
-    for (size_t i = 0; i < board->cell_count; i++)
-    {
-        unsigned char value;
-        if (fread(&value, sizeof(unsigned char), 1, file) != 1)
-        {
-            LOG_ERROR("Unexpected end of file while reading board.");
-            fclose(file);
-            exit(EXIT_FAILURE);
-        }
-
-        board->cells[i] = value;
-    }
-}
-
 int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
 {
     if (file == NULL || board == NULL)
@@ -120,6 +63,7 @@ int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
         }
         return -1;
     }
+
     const unsigned char block_size_byte = (unsigned char)board->block_length;
     const unsigned char side_byte       = (unsigned char)board->side_length;
     if (fwrite(&block_size_byte, sizeof(unsigned char), 1, file) != 1)
@@ -130,6 +74,7 @@ int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
         }
         return -1;
     }
+
     if (fwrite(&side_byte, sizeof(unsigned char), 1, file) != 1)
     {
         if (!silent)
@@ -138,6 +83,7 @@ int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
         }
         return -1;
     }
+
     /* Write the entire flat cell slab in one call. */
     if (fwrite(board->cells, sizeof(hpp_cell), board->cell_count, file) != board->cell_count)
     {
@@ -147,6 +93,7 @@ int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
         }
         return -1;
     }
+
     return 0;
 }
 
@@ -200,4 +147,76 @@ int write_solution(const char* filename, const hpp_board* board)
     fclose(file);
     LOG_INFO("Solution written to: %s", filename);
     return 0;
+}
+
+/* =========================================================================
+ * Internal Helpers
+ * ========================================================================= */
+
+/**
+ * @brief Read and validate the board header (block length and side length).
+ *
+ * @note This helper is fail-fast: malformed input terminates the process,
+ *       because parser errors are treated as fatal CLI input errors.
+ * @pre `file`, `base`, and `side` are non-NULL.
+ * @post On success, `*base` and `*side` contain validated header values.
+ *
+ * @param file File pointer to read from.
+ * @param base Output parameter for the block length.
+ * @param side Output parameter for the side value.
+ */
+static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
+{
+    if (fread(base, sizeof(unsigned char), 1, file) != 1 ||
+        fread(side, sizeof(unsigned char), 1, file) != 1)
+    {
+        LOG_ERROR("Failed to read header bytes.");
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        LOG_INFO("Read value %hhu and %hhu", *base, *side);
+    }
+
+    if (*base == 0)
+    {
+        LOG_ERROR("Invalid value for size: %hhu", *base);
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+
+    if (*side == 0)
+    {
+        LOG_ERROR("Invalid value for side count: %hhu", *side);
+        fclose(file);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/**
+ * @brief Read board cells from file and populate the board.
+ *
+ * @note Reads exactly `board->cell_count` bytes; short reads are treated as
+ *       corrupted/truncated input and terminate the process.
+ * @pre `file != NULL` and `board` points to allocated cell storage.
+ * @post On success, `board->cells` is fully populated from stream data.
+ *
+ * @param file File pointer to read from.
+ * @param board Board structure to populate.
+ */
+static void parse_board_cells(FILE* file, hpp_board* board)
+{
+    for (size_t i = 0; i < board->cell_count; i++)
+    {
+        unsigned char value;
+        if (fread(&value, sizeof(unsigned char), 1, file) != 1)
+        {
+            LOG_ERROR("Unexpected end of file while reading board.");
+            fclose(file);
+            exit(EXIT_FAILURE);
+        }
+
+        board->cells[i] = value;
+    }
 }
