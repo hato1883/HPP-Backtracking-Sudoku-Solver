@@ -117,6 +117,7 @@ static inline void timer_stop(hpp_timer* timer)
  */
 static inline uint64_t timer_ns(const hpp_timer* timer)
 {
+    // Cached conversion ratio from mach absolute ticks to nanoseconds.
     static mach_timebase_info_data_t info = {0, 0};
     if (info.denom == 0)
     {

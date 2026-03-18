@@ -16,11 +16,118 @@
 #include <string.h>
 #include <unistd.h>
 
+/* =========================================================================
+ * File Constants
+ * ========================================================================= */
+
 static const char* const default_input_file  = "board.dat";
 static const char* const default_output_file = "answer.dat";
 
 /* =========================================================================
- * CLI Parsing
+ * Forward Declarations
+ * ========================================================================= */
+
+static uint32_t    parse_thread_count_arg(const char* value);
+static void        parse_args(int          argc,
+                              char*        argv[],
+                              bool*        enable_ui,
+                              const char** moves_log_file,
+                              const char** input_file,
+                              bool*        enable_benchmark,
+                              uint32_t*    thread_count);
+static void        write_solution_output(hpp_solver_status status, hpp_board* board, bool is_piped);
+static void        configure_logging_for_pipe(bool is_piped);
+static const char* get_status_string(hpp_solver_status status);
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
+
+int main(int argc, char* argv[])
+{
+    /* Parse command-line arguments. */
+    bool        enable_ui        = false;
+    const char* moves_log_file   = NULL;
+    const char* input_file       = NULL;
+    bool        enable_benchmark = false;
+    uint32_t    thread_count     = 0U;
+    parse_args(
+        argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark, &thread_count);
+
+    /* Detect piped output and disable noisy logs in data pipelines. */
+    bool is_piped = !isatty(STDOUT_FILENO);
+    configure_logging_for_pipe(is_piped);
+    if (is_piped)
+    {
+        enable_ui = false;
+    }
+
+    /* Benchmark mode emits machine-readable JSON only. */
+    if (enable_benchmark)
+    {
+        logger_set_level(LOG_LEVEL_NONE);
+        enable_ui = false;
+    }
+
+    hpp_timer timer;
+    timer_start(&timer);
+
+    LOG_INFO("Loading board from %s", input_file);
+    hpp_board* initial_board = parse_file(input_file);
+    if (initial_board == NULL)
+    {
+        LOG_ERROR("Failed to parse board");
+        return 1;
+    }
+
+    /* Display board if not in piped or benchmark mode */
+    if (!is_piped && !enable_benchmark)
+    {
+        printf("Solving the following board:\n");
+        print_board(initial_board);
+        printf("\n");
+    }
+
+    /* Run solver. */
+    LOG_INFO("Starting solver");
+    hpp_solver_config solver_config = {
+        .thread_count   = thread_count,
+        .moves_log_file = moves_log_file,
+    };
+    hpp_solver_status status = solve(initial_board, &solver_config);
+
+    /* Write solution if successful. */
+    write_solution_output(status, initial_board, is_piped);
+
+    timer_stop(&timer);
+
+    /* Report results. */
+    if (enable_benchmark)
+    {
+        /* Output benchmark data in JSON format */
+        uint64_t elapsed_ns = timer_ns(&timer);
+        printf("{\"status\": \"%s\", \"elapsed_ns\": %llu, \"elapsed_s\": %.9lf}\n",
+               get_status_string(status),
+               (unsigned long long)elapsed_ns,
+               timer_s(&timer));
+    }
+    else
+    {
+        printf("Solved board:\n");
+        print_board(initial_board);
+        printf("\n");
+        LOG_INFO("Solver finished with status: %s", get_status_string(status));
+        LOG_INFO("Total time: %.4lf seconds", timer_s(&timer));
+    }
+
+    /* Clean up. */
+    destroy_board(&initial_board);
+
+    return (status == SOLVER_SUCCESS) ? 0 : 1;
+}
+
+/* =========================================================================
+ * Internal Helpers
  * ========================================================================= */
 
 /**
@@ -210,87 +317,4 @@ static const char* get_status_string(hpp_solver_status status)
         default:
             return "UNKNOWN";
     }
-}
-
-int main(int argc, char* argv[])
-{
-    /* Parse command-line arguments. */
-    bool        enable_ui        = false;
-    const char* moves_log_file   = NULL;
-    const char* input_file       = NULL;
-    bool        enable_benchmark = false;
-    uint32_t    thread_count     = 0U;
-    parse_args(
-        argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark, &thread_count);
-
-    /* Detect piped output and disable noisy logs in data pipelines. */
-    bool is_piped = !isatty(STDOUT_FILENO);
-    configure_logging_for_pipe(is_piped);
-    if (is_piped)
-    {
-        enable_ui = false;
-    }
-
-    /* Benchmark mode emits machine-readable JSON only. */
-    if (enable_benchmark)
-    {
-        logger_set_level(LOG_LEVEL_NONE);
-        enable_ui = false;
-    }
-
-    hpp_timer timer;
-    timer_start(&timer);
-
-    LOG_INFO("Loading board from %s", input_file);
-    hpp_board* initial_board = parse_file(input_file);
-    if (initial_board == NULL)
-    {
-        LOG_ERROR("Failed to parse board");
-        return 1;
-    }
-
-    /* Display board if not in piped or benchmark mode */
-    if (!is_piped && !enable_benchmark)
-    {
-        printf("Solving the following board:\n");
-        print_board(initial_board);
-        printf("\n");
-    }
-
-    /* Run solver. */
-    LOG_INFO("Starting solver");
-    hpp_solver_config solver_config = {
-        .thread_count   = thread_count,
-        .moves_log_file = moves_log_file,
-    };
-    hpp_solver_status status = solve(initial_board, &solver_config);
-
-    /* Write solution if successful. */
-    write_solution_output(status, initial_board, is_piped);
-
-    timer_stop(&timer);
-
-    /* Report results. */
-    if (enable_benchmark)
-    {
-        /* Output benchmark data in JSON format */
-        uint64_t elapsed_ns = timer_ns(&timer);
-        printf("{\"status\": \"%s\", \"elapsed_ns\": %llu, \"elapsed_s\": %.9lf}\n",
-               get_status_string(status),
-               (unsigned long long)elapsed_ns,
-               timer_s(&timer));
-    }
-    else
-    {
-        printf("Solved board:\n");
-        print_board(initial_board);
-        printf("\n");
-        LOG_INFO("Solver finished with status: %s", get_status_string(status));
-        LOG_INFO("Total time: %.4lf seconds", timer_s(&timer));
-    }
-
-    /* Clean up. */
-    destroy_board(&initial_board);
-
-    return (status == SOLVER_SUCCESS) ? 0 : 1;
 }

@@ -11,56 +11,27 @@
 #include <string.h>
 
 /* =========================================================================
- * Internal Constants and Helpers
+ * Forward Declarations
  * ========================================================================= */
 
-static size_t hpp_validation_box_count(size_t side_length, size_t block_length)
-{
-    const size_t boxes_per_side = side_length / block_length;
-    return boxes_per_side * boxes_per_side;
-}
-
-// Compute sub-grid index from row/column coordinates.
-static size_t hpp_get_box_index(size_t row, size_t col, size_t block_length)
-{
-    return ((row / block_length) * block_length) + (col / block_length);
-}
-
+static size_t                     hpp_validation_box_count(size_t side_length, size_t block_length);
+static size_t                     hpp_get_box_index(size_t row, size_t col, size_t block_length);
 static inline hpp_bitvector_word* hpp_row_bits_mut(hpp_validation_constraints* constraints,
-                                                   size_t                      row)
-{
-    return constraints->row_bitvectors + (row * HPP_BITVECTOR_WORD_COUNT);
-}
-
+                                                   size_t                      row);
 static inline const hpp_bitvector_word* hpp_row_bits(const hpp_validation_constraints* constraints,
-                                                     size_t                            row)
-{
-    return constraints->row_bitvectors + (row * HPP_BITVECTOR_WORD_COUNT);
-}
-
-static inline hpp_bitvector_word* hpp_col_bits_mut(hpp_validation_constraints* constraints,
-                                                   size_t                      col)
-{
-    return constraints->col_bitvectors + (col * HPP_BITVECTOR_WORD_COUNT);
-}
-
+                                                     size_t                            row);
+static inline hpp_bitvector_word*       hpp_col_bits_mut(hpp_validation_constraints* constraints,
+                                                         size_t                      col);
 static inline const hpp_bitvector_word* hpp_col_bits(const hpp_validation_constraints* constraints,
-                                                     size_t                            col)
-{
-    return constraints->col_bitvectors + (col * HPP_BITVECTOR_WORD_COUNT);
-}
-
-static inline hpp_bitvector_word* hpp_box_bits_mut(hpp_validation_constraints* constraints,
-                                                   size_t                      box_idx)
-{
-    return constraints->box_bitvectors + (box_idx * HPP_BITVECTOR_WORD_COUNT);
-}
-
+                                                     size_t                            col);
+static inline hpp_bitvector_word*       hpp_box_bits_mut(hpp_validation_constraints* constraints,
+                                                         size_t                      box_idx);
 static inline const hpp_bitvector_word* hpp_box_bits(const hpp_validation_constraints* constraints,
-                                                     size_t                            box_idx)
-{
-    return constraints->box_bitvectors + (box_idx * HPP_BITVECTOR_WORD_COUNT);
-}
+                                                     size_t                            box_idx);
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
 
 hpp_validation_constraints* hpp_validation_constraints_create(size_t side_length,
                                                               size_t block_length)
@@ -181,6 +152,7 @@ bool hpp_validation_row_add_value(hpp_validation_constraints* constraints, size_
     {
         return false;
     }
+
     hpp_bitvector_set(row_bits, value);
     return true;
 }
@@ -207,6 +179,7 @@ bool hpp_validation_col_add_value(hpp_validation_constraints* constraints, size_
     {
         return false;
     }
+
     hpp_bitvector_set(col_bits, value);
     return true;
 }
@@ -238,6 +211,7 @@ bool hpp_validation_box_add_value(hpp_validation_constraints* constraints,
     {
         return false;
     }
+
     hpp_bitvector_set(box_bits, value);
     return true;
 }
@@ -280,4 +254,145 @@ bool hpp_validation_can_place_value(const hpp_validation_constraints* constraint
     }
 
     return true;
+}
+
+/* =========================================================================
+ * Internal Helpers
+ * ========================================================================= */
+
+/**
+ * @brief Return number of boxes on the board.
+ *
+ * @note Assumes classic square subgrid layout where boxes per side equals
+ *       `side_length / block_length`.
+ * @pre `block_length > 0` and divides `side_length`.
+ * @post No state is modified.
+ *
+ * @param side_length Sudoku board side length.
+ * @param block_length Subgrid side length.
+ * @return Total number of boxes on the board.
+ */
+static size_t hpp_validation_box_count(size_t side_length, size_t block_length)
+{
+    const size_t boxes_per_side = side_length / block_length;
+    return boxes_per_side * boxes_per_side;
+}
+
+/**
+ * @brief Compute sub-grid index from row/column coordinates.
+ *
+ * @note The mapping is row-major over box coordinates.
+ * @pre `block_length > 0`; `row` and `col` are in board bounds.
+ * @post No state is modified.
+ *
+ * @param row Cell row index.
+ * @param col Cell column index.
+ * @param block_length Subgrid side length.
+ * @return Box index corresponding to `(row, col)`.
+ */
+static size_t hpp_get_box_index(size_t row, size_t col, size_t block_length)
+{
+    return ((row / block_length) * block_length) + (col / block_length);
+}
+
+/**
+ * @brief Mutable row bitvector accessor.
+ *
+ * @note Returns pointer into contiguous row bitvector slab.
+ * @pre `constraints != NULL` and `row < constraints->side_length`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param row Row index to address.
+ * @return Mutable pointer to row occupancy bitvector.
+ */
+static inline hpp_bitvector_word* hpp_row_bits_mut(hpp_validation_constraints* constraints,
+                                                   size_t                      row)
+{
+    return constraints->row_bitvectors + (row * HPP_BITVECTOR_WORD_COUNT);
+}
+
+/**
+ * @brief Const row bitvector accessor.
+ *
+ * @note Returns pointer into contiguous row bitvector slab.
+ * @pre `constraints != NULL` and `row < constraints->side_length`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param row Row index to address.
+ * @return Read-only pointer to row occupancy bitvector.
+ */
+static inline const hpp_bitvector_word* hpp_row_bits(const hpp_validation_constraints* constraints,
+                                                     size_t                            row)
+{
+    return constraints->row_bitvectors + (row * HPP_BITVECTOR_WORD_COUNT);
+}
+
+/**
+ * @brief Mutable column bitvector accessor.
+ *
+ * @note Returns pointer into contiguous column bitvector slab.
+ * @pre `constraints != NULL` and `col < constraints->side_length`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param col Column index to address.
+ * @return Mutable pointer to column occupancy bitvector.
+ */
+static inline hpp_bitvector_word* hpp_col_bits_mut(hpp_validation_constraints* constraints,
+                                                   size_t                      col)
+{
+    return constraints->col_bitvectors + (col * HPP_BITVECTOR_WORD_COUNT);
+}
+
+/**
+ * @brief Const column bitvector accessor.
+ *
+ * @note Returns pointer into contiguous column bitvector slab.
+ * @pre `constraints != NULL` and `col < constraints->side_length`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param col Column index to address.
+ * @return Read-only pointer to column occupancy bitvector.
+ */
+static inline const hpp_bitvector_word* hpp_col_bits(const hpp_validation_constraints* constraints,
+                                                     size_t                            col)
+{
+    return constraints->col_bitvectors + (col * HPP_BITVECTOR_WORD_COUNT);
+}
+
+/**
+ * @brief Mutable box bitvector accessor.
+ *
+ * @note Returns pointer into contiguous box bitvector slab.
+ * @pre `constraints != NULL` and `box_idx < box_count`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param box_idx Box index to address.
+ * @return Mutable pointer to box occupancy bitvector.
+ */
+static inline hpp_bitvector_word* hpp_box_bits_mut(hpp_validation_constraints* constraints,
+                                                   size_t                      box_idx)
+{
+    return constraints->box_bitvectors + (box_idx * HPP_BITVECTOR_WORD_COUNT);
+}
+
+/**
+ * @brief Const box bitvector accessor.
+ *
+ * @note Returns pointer into contiguous box bitvector slab.
+ * @pre `constraints != NULL` and `box_idx < box_count`.
+ * @post No state is modified.
+ *
+ * @param constraints Validation constraint container.
+ * @param box_idx Box index to address.
+ * @return Read-only pointer to box occupancy bitvector.
+ */
+static inline const hpp_bitvector_word* hpp_box_bits(const hpp_validation_constraints* constraints,
+                                                     size_t                            box_idx)
+{
+    return constraints->box_bitvectors + (box_idx * HPP_BITVECTOR_WORD_COUNT);
 }
