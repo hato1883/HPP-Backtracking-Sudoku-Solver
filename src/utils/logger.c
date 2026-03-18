@@ -1,3 +1,8 @@
+/**
+ * @file utils/logger.c
+ * @brief Runtime logger state and stderr formatting.
+ */
+
 #include "utils/logger.h"
 
 #include "utils/color.h"
@@ -26,6 +31,7 @@ void log_message(
     va_list args;
     va_start(args, fmt);
 
+    // Prefix with severity and optional source context.
     fprintf(stderr, "%s[%s]", level_colors[level], level_strings[level]);
 
     if (global_verbosity == 0)

@@ -1,3 +1,8 @@
+/**
+ * @file main.c
+ * @brief CLI entrypoint for loading, solving, and emitting Sudoku boards.
+ */
+
 #include "data/board.h"
 #include "parser/parser.h"
 #include "solver/solver.h"
@@ -14,6 +19,20 @@
 static const char* const default_input_file  = "board.dat";
 static const char* const default_output_file = "answer.dat";
 
+/* =========================================================================
+ * CLI Parsing
+ * ========================================================================= */
+
+/**
+ * @brief Parse an optional thread-count CLI argument.
+ *
+ * @note Returns `0` for invalid values so caller can keep defaults.
+ * @pre `value` may be `NULL`.
+ * @post No global state is modified.
+ *
+ * @param value Raw argument text.
+ * @return Parsed thread count, or `0` when invalid/unspecified.
+ */
 static uint32_t parse_thread_count_arg(const char* value)
 {
     if (value == NULL || *value == '\0')
@@ -33,12 +52,19 @@ static uint32_t parse_thread_count_arg(const char* value)
 }
 
 /**
- * Parse command-line arguments.
+ * @brief Parse command-line arguments.
  *
- * @param argc argument count.
- * @param argv argument values.
- * @param enable_ui output flag for --ui mode.
- * @param moves_log_file output pointer for --moves-log FILE mode.
+ * @note Unknown flags are ignored unless interpreted as input-file argument.
+ * @pre Output pointers are non-NULL.
+ * @post Output parameters contain parsed CLI state or defaults.
+ *
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @param enable_ui Output flag for `--ui` mode.
+ * @param moves_log_file Output pointer for `--moves-log FILE` mode.
+ * @param input_file Output pointer for positional input file path.
+ * @param enable_benchmark Output flag for `--benchmark` mode.
+ * @param thread_count Output thread count override.
  */
 static void parse_args(int          argc,
                        char*        argv[],
@@ -108,6 +134,13 @@ static void parse_args(int          argc,
 
 /**
  * @brief Write solution to output (stdout if piped, answer.dat otherwise).
+ *
+ * @pre `board != NULL`.
+ * @post On success path, serialized solution is written to selected output.
+ *
+ * @param status Solver status.
+ * @param board Solved board.
+ * @param is_piped Whether stdout is piped.
  */
 static void write_solution_output(hpp_solver_status status, hpp_board* board, bool is_piped)
 {
@@ -134,6 +167,11 @@ static void write_solution_output(hpp_solver_status status, hpp_board* board, bo
  * @brief Configure logging based on whether output is piped.
  *
  * Disables logging if output is piped (for clean output in scripts).
+ *
+ * @pre None.
+ * @post Runtime log level may be changed.
+ *
+ * @param is_piped Whether stdout is piped.
  */
 static void configure_logging_for_pipe(bool is_piped)
 {
@@ -145,6 +183,17 @@ static void configure_logging_for_pipe(bool is_piped)
 
 /**
  * @brief Convert solver status to string representation.
+ *
+ * @pre None.
+ * @post No state is modified.
+ *
+ * @param status Solver status code.
+ * @return Constant status label string.
+ *
+ * @par Example
+ * @code{.c}
+ * printf("status=%s\n", get_status_string(SOLVER_SUCCESS));
+ * @endcode
  */
 static const char* get_status_string(hpp_solver_status status)
 {
@@ -165,8 +214,7 @@ static const char* get_status_string(hpp_solver_status status)
 
 int main(int argc, char* argv[])
 {
-
-    /* Parse command-line arguments */
+    /* Parse command-line arguments. */
     bool        enable_ui        = false;
     const char* moves_log_file   = NULL;
     const char* input_file       = NULL;
@@ -175,7 +223,7 @@ int main(int argc, char* argv[])
     parse_args(
         argc, argv, &enable_ui, &moves_log_file, &input_file, &enable_benchmark, &thread_count);
 
-    /* Detect if output is piped and configure accordingly */
+    /* Detect piped output and disable noisy logs in data pipelines. */
     bool is_piped = !isatty(STDOUT_FILENO);
     configure_logging_for_pipe(is_piped);
     if (is_piped)
@@ -183,7 +231,7 @@ int main(int argc, char* argv[])
         enable_ui = false;
     }
 
-    /* In benchmark mode, disable logging and UI for cleaner output */
+    /* Benchmark mode emits machine-readable JSON only. */
     if (enable_benchmark)
     {
         logger_set_level(LOG_LEVEL_NONE);
@@ -209,7 +257,7 @@ int main(int argc, char* argv[])
         printf("\n");
     }
 
-    // Run solver
+    /* Run solver. */
     LOG_INFO("Starting solver");
     hpp_solver_config solver_config = {
         .thread_count   = thread_count,
@@ -217,12 +265,12 @@ int main(int argc, char* argv[])
     };
     hpp_solver_status status = solve(initial_board, &solver_config);
 
-    // Write solution if successful
+    /* Write solution if successful. */
     write_solution_output(status, initial_board, is_piped);
 
     timer_stop(&timer);
 
-    /* Report results */
+    /* Report results. */
     if (enable_benchmark)
     {
         /* Output benchmark data in JSON format */
@@ -241,7 +289,7 @@ int main(int argc, char* argv[])
         LOG_INFO("Total time: %.4lf seconds", timer_s(&timer));
     }
 
-    // Clean up
+    /* Clean up. */
     destroy_board(&initial_board);
 
     return (status == SOLVER_SUCCESS) ? 0 : 1;

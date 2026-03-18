@@ -1,3 +1,8 @@
+/**
+ * @file solver/solver.c
+ * @brief Parallel backtracking search using candidate propagation + OpenMP tasks.
+ */
+
 #include "solver/solver.h"
 
 #include "solver/cactus_stack.h"
@@ -7,6 +12,10 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
+
+/* =========================================================================
+ * Shared Solver State
+ * ========================================================================= */
 
 typedef struct SolverShared
 {
@@ -118,6 +127,7 @@ static void hpp_solver_search_node(hpp_cactus_node* node, hpp_solver_shared* sha
             const size_t guess      = branch.values[idx];
             const size_t cell_index = branch.cell_index;
 
+            // Spawn only while shallow enough and global task budget allows it.
             const bool can_spawn_task = (depth < shared->task_spawn_depth) &&
                                         (branch.value_count > 1U) &&
                                         hpp_solver_try_reserve_task_slot(shared);
@@ -190,6 +200,7 @@ hpp_solver_status solve(hpp_board* board, const hpp_solver_config* config)
     atomic_init(&shared.internal_error, false);
     atomic_init(&shared.active_tasks, 0U);
 
+    // Keep thread count stable for predictable task scheduling.
     omp_set_dynamic(0);
     omp_set_max_active_levels(1);
     omp_set_num_threads((int)thread_count);

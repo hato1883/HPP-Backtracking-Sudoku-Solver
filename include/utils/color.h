@@ -1,3 +1,8 @@
+/**
+ * @file utils/color.h
+ * @brief ANSI color escape constants for terminal output.
+ */
+
 #ifndef UTILS_COLOR_H
 #define UTILS_COLOR_H
 
@@ -6,4 +11,4 @@
 #define COLOR_YELLOW "\033[33m"
 #define COLOR_RESET "\033[0m"
 
-#endif
+#endif /* UTILS_COLOR_H */

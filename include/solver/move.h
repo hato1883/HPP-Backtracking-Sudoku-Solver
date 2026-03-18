@@ -1,26 +1,29 @@
+/**
+ * @file solver/move.h
+ * @brief Lightweight move/event payload types for solver progress reporting.
+ */
+
 #ifndef SOLVER_MOVE_H
 #define SOLVER_MOVE_H
 
 #include <stdint.h>
 
-/**
- * Enumeration of possible move kinds in Stochastic Local Search (SLS).
- *
- * ASSIGN: A value is assigned to a cell (has old value for undo semantics).
- * SWAP:   Two values swap positions within the same row or block.
- */
+/* =========================================================================
+ * Move Kinds
+ * ========================================================================= */
+
+/** Supported move/event kinds. */
 typedef enum MoveKind
 {
     MOVE_ASSIGN,
     MOVE_SWAP,
 } hpp_move_kind;
 
-/**
- * Decision payload for an ASSIGN move.
- *
- * Represents assigning a new_value to a cell at (row, col),
- * replacing the old_value (useful for undo/visualization).
- */
+/* =========================================================================
+ * Payload Types
+ * ========================================================================= */
+
+/** Payload for `MOVE_ASSIGN`. */
 typedef struct MoveAssign
 {
     uint16_t row;
@@ -29,12 +32,7 @@ typedef struct MoveAssign
     uint8_t  new_value;
 } hpp_move_assign;
 
-/**
- * Decision payload for a SWAP move.
- *
- * Represents swapping values between (row1, col1) and (row2, col2).
- * Consumer can read the actual values from the current board state.
- */
+/** Payload for `MOVE_SWAP`. */
 typedef struct MoveSwap
 {
     uint16_t row1;
@@ -44,10 +42,9 @@ typedef struct MoveSwap
 } hpp_move_swap;
 
 /**
- * Union-like structure for a move decision.
+ * @brief Discriminated move payload.
  *
- * Use .kind to determine which field is active.
- * Lifetime: immediate, transient. Consumer should copy if retention needed.
+ * Read `kind` first, then inspect the matching union member.
  */
 typedef struct Move
 {
@@ -59,4 +56,4 @@ typedef struct Move
     } payload;
 } hpp_move;
 
-#endif
+#endif /* SOLVER_MOVE_H */
