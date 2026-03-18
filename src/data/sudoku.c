@@ -1,6 +1,22 @@
+/**
+ * @file data/sudoku.c
+ * @brief High-level Sudoku wrapper around board and validation constraints.
+ */
+
 #include "data/sudoku.h"
 
 #include <stdlib.h>
+
+static size_t hpp_sudoku_infer_block_length(size_t side_length)
+{
+    size_t block_length = 1;
+    while (block_length * block_length < side_length)
+    {
+        block_length++;
+    }
+
+    return (block_length * block_length == side_length) ? block_length : 0;
+}
 
 hpp_sudoku* hpp_sudoku_create(size_t side_length, size_t block_length)
 {
@@ -48,12 +64,12 @@ hpp_sudoku* hpp_sudoku_create_from_board(const hpp_board* board)
         return NULL;
     }
 
-    // Determine block_length from board (assuming standard Sudoku pattern)
-    // For a 9x9 board, block_length = 3; for 16x16, block_length = 4, etc.
-    size_t block_length = 1;
-    while (block_length * block_length < board->side_length)
+    const size_t block_length = hpp_sudoku_infer_block_length(board->side_length);
+    if (block_length == 0)
     {
-        block_length++;
+        destroy_board(&sudoku->board);
+        free(sudoku);
+        return NULL;
     }
 
     sudoku->constraints = hpp_validation_constraints_create(board->side_length, block_length);
@@ -64,7 +80,7 @@ hpp_sudoku* hpp_sudoku_create_from_board(const hpp_board* board)
         return NULL;
     }
 
-    // Initialize constraints from board
+    // Initialize constraints from the copied board state.
     if (!hpp_validation_constraints_init_from_board(sudoku->constraints, sudoku->board))
     {
         hpp_validation_constraints_destroy(&sudoku->constraints);
@@ -137,13 +153,13 @@ bool hpp_sudoku_set_cell(hpp_sudoku* sudoku, size_t row, size_t col, hpp_cell va
         return false;
     }
 
-    // Check if value is valid
+    // Reject out-of-range values early.
     if (value != BOARD_CELL_EMPTY && value > sudoku->board->side_length)
     {
         return false;
     }
 
-    // Check for conflicts if placing a non-empty value
+    // Validate placement before mutating state.
     if (value != BOARD_CELL_EMPTY && !hpp_sudoku_can_place_value(sudoku, row, col, value))
     {
         return false;
@@ -152,7 +168,7 @@ bool hpp_sudoku_set_cell(hpp_sudoku* sudoku, size_t row, size_t col, hpp_cell va
     size_t   index     = (row * sudoku->board->side_length) + col;
     hpp_cell old_value = sudoku->board->cells[index];
 
-    // Remove old value from constraints if it exists
+    // Remove old value from constraints if the cell was assigned.
     if (old_value != BOARD_CELL_EMPTY)
     {
         hpp_validation_row_remove_value(sudoku->constraints, row, old_value);
@@ -160,10 +176,10 @@ bool hpp_sudoku_set_cell(hpp_sudoku* sudoku, size_t row, size_t col, hpp_cell va
         hpp_validation_box_remove_value(sudoku->constraints, row, col, old_value);
     }
 
-    // Set the new value
+    // Apply new cell value.
     sudoku->board->cells[index] = value;
 
-    // Add new value to constraints if it's not empty
+    // Add new value to constraints if assigned.
     if (value != BOARD_CELL_EMPTY)
     {
         hpp_validation_row_add_value(sudoku->constraints, row, value);
@@ -210,7 +226,7 @@ bool hpp_sudoku_is_valid(const hpp_sudoku* sudoku)
         return false;
     }
 
-    // Check board structure
+    // Validate board shape invariants.
     if (sudoku->board->cells == NULL || sudoku->board->side_length == 0 ||
         sudoku->board->block_length == 0 ||
         sudoku->board->cell_count != sudoku->board->side_length * sudoku->board->side_length)
@@ -223,7 +239,7 @@ bool hpp_sudoku_is_valid(const hpp_sudoku* sudoku)
         return false;
     }
 
-    // Verify constraints match board state
+    // Verify constraints reflect all assigned board values.
     for (size_t row = 0; row < sudoku->board->side_length; ++row)
     {
         for (size_t col = 0; col < sudoku->board->side_length; ++col)
@@ -236,13 +252,13 @@ bool hpp_sudoku_is_valid(const hpp_sudoku* sudoku)
                 continue;
             }
 
-            // Value must be valid range
+            // Value must be in the legal symbol range.
             if (value > sudoku->board->side_length)
             {
                 return false;
             }
 
-            // Value must be in constraints
+            // Value must be present in every corresponding unit bitvector.
             if (!hpp_validation_row_has_value(sudoku->constraints, row, value) ||
                 !hpp_validation_col_has_value(sudoku->constraints, col, value) ||
                 !hpp_validation_box_has_value(sudoku->constraints, row, col, value))

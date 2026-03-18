@@ -1,6 +1,15 @@
+/**
+ * @file solver/cactus_stack.c
+ * @brief Cactus-node reference counting and stack primitives.
+ */
+
 #include "solver/cactus_stack.h"
 
 #include <stdlib.h>
+
+/* =========================================================================
+ * Internal Node Helpers
+ * ========================================================================= */
 
 static hpp_cactus_node* hpp_cactus_node_create(void)
 {
@@ -103,6 +112,7 @@ void hpp_cactus_node_release(hpp_cactus_node* node)
 {
     while (node != NULL)
     {
+        // Release current node; if it was the last owner, cascade to parent.
         if (atomic_fetch_sub_explicit(&node->ref_count, 1U, memory_order_acq_rel) != 1U)
         {
             return;
@@ -190,7 +200,7 @@ bool hpp_cactus_stack_pop(hpp_cactus_stack* stack)
     hpp_cactus_node* node = stack->top;
     if (node->parent != NULL)
     {
-        // The stack takes ownership of the parent before releasing the child.
+        // Stack takes ownership of parent before dropping child.
         hpp_cactus_node_retain(node->parent);
     }
 

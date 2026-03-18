@@ -1,9 +1,14 @@
+/**
+ * @file utils/logger.h
+ * @brief Lightweight stderr logger with compile-time level filtering.
+ */
+
 #ifndef UTILS_LOGGER_H
 #define UTILS_LOGGER_H
 
-/* ===============================
-   Log Levels
-   =============================== */
+/* =========================================================================
+ * Log Levels
+ * ========================================================================= */
 
 #define LOG_LEVEL_DEBUG 0
 #define LOG_LEVEL_INFO 1
@@ -20,9 +25,9 @@ typedef enum
     NONE  = LOG_LEVEL_NONE,
 } hpp_log_level;
 
-/* ===============================
-   Configuration
-   =============================== */
+/* =========================================================================
+ * Compile-Time Defaults
+ * ========================================================================= */
 
 #ifndef LOG_LEVEL
 #define LOG_LEVEL LOG_LEVEL_INFO
@@ -32,22 +37,33 @@ typedef enum
 #define LOG_VERBOSITY 0
 #endif
 
+/* =========================================================================
+ * Core API
+ * ========================================================================= */
+
 /**
- * Logs information to the terminal
+ * @brief Emit one log message.
  *
- * @note Use the macros such as @code LOG_WARN provided instead
+ * Prefer the convenience macros (`LOG_DEBUG`, `LOG_INFO`, `LOG_WARN`,
+ * `LOG_ERROR`) so call-site metadata is added automatically.
  *
- * @param level logging level to use {LOG_LEVEL_DEBUG, LOG_LEVEL_INFO, LOG_LEVEL_WARN,
- * LOG_LEVEL_ERROR, LOG_LEVEL_NONE}
- * @param file source file in which the log was invoked from
- * @param line line in the source file
- * @param func function in the source file
-`[INFO]   src/main.c:17:  and bitmaks:`
- * @param fmt printf format string
- * @param ... Varargs of objects to insert into the string
+ * @note Prefer macro wrappers to auto-capture file/line/function metadata.
+ * @pre `fmt != NULL`.
+ * @post One formatted line is written to stderr when level is enabled.
+ *
+ * @param level Log level.
+ * @param file Source file path.
+ * @param line Source line number.
+ * @param func Source function name.
+ * @param fmt `printf`-style format string.
+ * @param ... Format arguments.
  */
 void log_message(
     hpp_log_level level, const char* file, int line, const char* func, const char* fmt, ...);
+
+/* =========================================================================
+ * Convenience Macros
+ * ========================================================================= */
 
 #if LOG_LEVEL <= LOG_LEVEL_DEBUG
 #define LOG_DEBUG(fmt, ...)                                                                        \
@@ -77,25 +93,57 @@ void log_message(
 #define LOG_ERROR(fmt, ...)
 #endif
 
+/* =========================================================================
+ * Runtime Controls
+ * ========================================================================= */
+
+/**
+ * @brief Get current global log level.
+ *
+ * @pre None.
+ * @post Logger state is unchanged.
+ *
+ * @return Current runtime log level.
+ */
 hpp_log_level logger_get_level(void);
 
+/**
+ * @brief Set global log level at runtime.
+ *
+ * @note Runtime level can further restrict compile-time-enabled logs.
+ * @pre `level` is one of `hpp_log_level` values.
+ * @post Subsequent log emission uses the new runtime threshold.
+ *
+ * @param level New runtime log level.
+ *
+ * @par Example
+ * @code{.c}
+ * logger_set_level(LOG_LEVEL_WARN);
+ * LOG_INFO("this message is suppressed at runtime");
+ * @endcode
+ */
 void logger_set_level(hpp_log_level level);
 
 /**
- * Get the current verbosity level
+ * @brief Get current verbosity level (`0..2`).
  *
- * @return Current verbosity level (0, 1, or 2)
+ * @pre None.
+ * @post Logger state is unchanged.
+ *
+ * @return Current verbosity level.
  */
 int logger_get_verbosity(void);
 
 /**
- * Set the verbosity level
+ * @brief Set verbosity level (`0..2`).
  *
- * @param verbosity Verbosity level:
- *   0: Only log level (e.g., [INFO]: message)
- *   1: Log level + file + line (e.g., [INFO]   file.c:17: message)
- *   2: Log level + file + line + function (e.g., [INFO]   file.c:17 (func): message)
+ * Higher verbosity includes file/line/function metadata in output.
+ *
+ * @pre Any integer is accepted; implementation clamps to valid range.
+ * @post Runtime verbosity is set to a value in `[0, 2]`.
+ *
+ * @param verbosity New verbosity level.
  */
 void logger_set_verbosity(int verbosity);
 
-#endif
+#endif /* UTILS_LOGGER_H */

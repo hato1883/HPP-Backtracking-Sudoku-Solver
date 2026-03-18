@@ -1,3 +1,8 @@
+/**
+ * @file data/board.c
+ * @brief Board allocation, cloning, copy, and rendering helpers.
+ */
+
 #include "data/board.h"
 
 #include <assert.h>
@@ -33,7 +38,7 @@ hpp_board* hpp_board_clone(const hpp_board* source)
     board->cells = malloc(board->cell_count * sizeof(hpp_cell));
     assert(board->cells != NULL && "Memory allocation failed!");
 
-    memcpy(board->cells, source->cells, board->cell_count);
+    memcpy(board->cells, source->cells, board->cell_count * sizeof(hpp_cell));
 
     return board;
 }
@@ -49,7 +54,7 @@ bool hpp_board_copy(hpp_board* destination, const hpp_board* source)
 
     assert(destination->cells != NULL && "Invalid board state");
     assert(source->cells != NULL && "Invalid board state");
-    memcpy(destination->cells, source->cells, destination->cell_count);
+    memcpy(destination->cells, source->cells, destination->cell_count * sizeof(hpp_cell));
 
     return true;
 }
@@ -78,6 +83,7 @@ void print_board(const hpp_board* board)
     assert(board != NULL && "Invalid board");
     assert(board->cells != NULL && "Invalid board");
 
+    // Keep fixed-width columns for larger boards (e.g., 16x16).
     const int    digits      = (int)log10((double)board->side_length) + 1;
     const size_t total_cells = board->side_length * board->side_length;
 

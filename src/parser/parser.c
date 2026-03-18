@@ -1,4 +1,9 @@
 
+/**
+ * @file parser/parser.c
+ * @brief Binary board parser and serializer implementation.
+ */
+
 #include "parser/parser.h"
 
 #include "data/board.h"
@@ -32,8 +37,7 @@ hpp_board* parse_file(const char* file_name)
         exit(EXIT_FAILURE);
     }
 
-    // This board will act as a starting point,
-    // any created board must match filled elements with this one
+    // Board is initialized from disk as the immutable puzzle baseline.
     hpp_board* board = create_board(side);
 
     parse_board_cells(file, board);
@@ -43,11 +47,14 @@ hpp_board* parse_file(const char* file_name)
 }
 
 /**
- * Read and validate the board header (base and side values)
+ * @brief Read and validate the board header (block length and side length).
  *
- * @param file File pointer to read from
- * @param base Output parameter for the base value
- * @param side Output parameter for the side value
+ * @pre `file`, `base`, and `side` are non-NULL.
+ * @post On success, `*base` and `*side` contain validated header values.
+ *
+ * @param file File pointer to read from.
+ * @param base Output parameter for the block length.
+ * @param side Output parameter for the side value.
  */
 static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
 {
@@ -79,10 +86,13 @@ static void parse_header(FILE* file, unsigned char* base, unsigned char* side)
 }
 
 /**
- * Read board cells from file and populate the board
+ * @brief Read board cells from file and populate the board.
  *
- * @param file File pointer to read from
- * @param board Board structure to populate
+ * @pre `file != NULL` and `board` points to allocated cell storage.
+ * @post On success, `board->cells` is fully populated from stream data.
+ *
+ * @param file File pointer to read from.
+ * @param board Board structure to populate.
  */
 static void parse_board_cells(FILE* file, hpp_board* board)
 {
@@ -100,16 +110,6 @@ static void parse_board_cells(FILE* file, hpp_board* board)
     }
 }
 
-/**
- * @brief Write a board to a FILE* stream (can be stdout or a file).
- *
- * Format: block_size (1 byte) + side (1 byte) + board bytes.
- *
- * @param file   Output stream.
- * @param board  The board to write.
- * @param silent If true, suppress error logging.
- * @return 0 on success, -1 on failure.
- */
 int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
 {
     if (file == NULL || board == NULL)
@@ -150,14 +150,6 @@ int write_board_to_stream(FILE* file, const hpp_board* board, int silent)
     return 0;
 }
 
-/**
- * Write a solved board to a binary file.
- * Format: block_size (1 byte) + side (1 byte) + board bytes
- *
- * @param filename output file path
- * @param board the solved board to write
- * @return 0 on success, -1 on failure
- */
 int write_solution(const char* filename, const hpp_board* board)
 {
     if (filename == NULL || board == NULL)
@@ -173,7 +165,7 @@ int write_solution(const char* filename, const hpp_board* board)
         return -1;
     }
 
-    // Write block_size
+    // Write block_length first.
     unsigned char block_size = (unsigned char)board->block_length;
     if (fwrite(&block_size, sizeof(unsigned char), 1, file) != 1)
     {
@@ -182,7 +174,7 @@ int write_solution(const char* filename, const hpp_board* board)
         return -1;
     }
 
-    // Write side
+    // Write side_length second.
     unsigned char side = (unsigned char)board->side_length;
     if (fwrite(&side, sizeof(unsigned char), 1, file) != 1)
     {
@@ -191,7 +183,7 @@ int write_solution(const char* filename, const hpp_board* board)
         return -1;
     }
 
-    // Write board cells
+    // Write board payload.
     for (size_t i = 0; i < board->cell_count; ++i)
     {
         unsigned char value = board->cells[i];

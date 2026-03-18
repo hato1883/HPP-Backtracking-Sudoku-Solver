@@ -1,14 +1,27 @@
+/**
+ * @file solver/candidate.c
+ * @brief Candidate-domain cache, propagation, and branching primitives.
+ */
+
 #include "solver/candidate.h"
 
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
+/* =========================================================================
+ * Internal Constants
+ * ========================================================================= */
+
 enum
 {
     HPP_CANDIDATE_VALUE_COUNT = UINT8_MAX + 1U,
     HPP_CANDIDATE_BYTE_COUNT  = HPP_CANDIDATE_VALUE_COUNT / CHAR_BIT,
 };
+
+/* =========================================================================
+ * Bitvector Utilities
+ * ========================================================================= */
 
 static inline void hpp_candidate_bit_position(size_t value, size_t* byte_idx, uint8_t* bit_offset)
 {
@@ -60,6 +73,10 @@ static inline size_t hpp_candidate_box_index(const hpp_board* board, size_t row,
 {
     return ((row / board->block_length) * board->block_length) + (col / board->block_length);
 }
+
+/* =========================================================================
+ * Constraint and State Setup
+ * ========================================================================= */
 
 static bool hpp_candidate_validate_initial_board(const hpp_board*            board,
                                                  hpp_validation_constraints* constraints)
@@ -199,6 +216,23 @@ static size_t hpp_candidate_find_single_value_for_cell(const hpp_candidate_state
     return BOARD_CELL_EMPTY;
 }
 
+static size_t hpp_candidate_ac3_singleton_value_for_cell(const hpp_candidate_state* state,
+                                                         size_t                     cell_index)
+{
+    const hpp_cell assigned_value = state->board->cells[cell_index];
+    if (assigned_value != BOARD_CELL_EMPTY)
+    {
+        return (size_t)assigned_value;
+    }
+
+    if (state->candidate_counts[cell_index] != 1)
+    {
+        return BOARD_CELL_EMPTY;
+    }
+
+    return hpp_candidate_find_single_value_for_cell(state, cell_index);
+}
+
 static size_t
 hpp_candidate_compute_cell(hpp_candidate_state* state, size_t cell_index, size_t* single_value)
 {
@@ -270,6 +304,10 @@ static bool hpp_candidate_initialize_cache_and_work_stack(hpp_candidate_state* s
 
     return true;
 }
+
+/* =========================================================================
+ * Hidden-Single Detection
+ * ========================================================================= */
 
 static bool hpp_candidate_find_hidden_single_in_row(const hpp_candidate_state* state,
                                                     size_t                     row,
@@ -449,6 +487,10 @@ static bool hpp_candidate_find_hidden_single_around_cell(const hpp_candidate_sta
            hpp_candidate_find_hidden_single_in_box(state, row, col, hidden_cell, hidden_value);
 }
 
+/* =========================================================================
+ * AC-3 Style Propagation
+ * ========================================================================= */
+
 static bool
 hpp_candidate_remove_value_from_cell(hpp_candidate_state* state, size_t cell_index, size_t value)
 {
@@ -478,9 +520,17 @@ hpp_candidate_remove_value_from_cell(hpp_candidate_state* state, size_t cell_ind
     return hpp_candidate_modified_push(state, cell_index);
 }
 
-static bool
-hpp_candidate_apply_assignment_to_peers(hpp_candidate_state* state, size_t cell_index, size_t value)
+static bool hpp_candidate_ac3_propagate_singleton_to_peers(hpp_candidate_state* state,
+                                                           size_t               cell_index)
 {
+    // AC-3 reduce step for Sudoku's binary not-equal constraints:
+    // if this cell is singleton, remove that value from all peer domains.
+    const size_t value = hpp_candidate_ac3_singleton_value_for_cell(state, cell_index);
+    if (value == BOARD_CELL_EMPTY)
+    {
+        return true;
+    }
+
     const size_t side_length  = state->board->side_length;
     const size_t block_length = state->board->block_length;
 
@@ -536,6 +586,10 @@ hpp_candidate_apply_assignment_to_peers(hpp_candidate_state* state, size_t cell_
 
     return true;
 }
+
+/* =========================================================================
+ * Public API
+ * ========================================================================= */
 
 hpp_candidate_init_status hpp_candidate_state_init_from_board(hpp_candidate_state* state,
                                                               const hpp_board*     source)
@@ -759,13 +813,9 @@ bool hpp_candidate_state_propagate_singles(hpp_candidate_state* state)
     size_t modified_cell = SIZE_MAX;
     while (hpp_candidate_modified_pop(state, &modified_cell))
     {
-        if (state->board->cells[modified_cell] != BOARD_CELL_EMPTY)
+        if (!hpp_candidate_ac3_propagate_singleton_to_peers(state, modified_cell))
         {
-            const size_t value = state->board->cells[modified_cell];
-            if (!hpp_candidate_apply_assignment_to_peers(state, modified_cell, value))
-            {
-                return false;
-            }
+            return false;
         }
 
         if (state->board->cells[modified_cell] == BOARD_CELL_EMPTY)
@@ -813,6 +863,7 @@ hpp_candidate_branch_status hpp_candidate_state_build_branch(hpp_candidate_state
         return HPP_CANDIDATE_BRANCH_COMPLETE;
     }
 
+    // Minimum Remaining Values (MRV): branch on the tightest domain first.
     size_t best_cell  = SIZE_MAX;
     size_t best_count = SIZE_MAX;
 

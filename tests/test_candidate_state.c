@@ -371,6 +371,49 @@ static void test_candidate_propagation_detects_peer_elimination_conflict(void)
     destroy_board(&board);
 }
 
+static void test_candidate_ac3_detects_conflicting_singleton_peers(void)
+{
+    const hpp_cell cells[] = {
+        0,
+        0,
+        3,
+        4,
+        2,
+        3,
+        1,
+        0,
+        3,
+        2,
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+    };
+
+    hpp_board* board = create_board_from_cells(cells, 4);
+    if (board == NULL)
+    {
+        CU_FAIL_FATAL("Failed to allocate board");
+        return;
+    }
+
+    hpp_candidate_state state = {0};
+    if (hpp_candidate_state_init_from_board(&state, board) != HPP_CANDIDATE_INIT_OK)
+    {
+        CU_FAIL_FATAL("Failed to initialize candidate state");
+        destroy_board(&board);
+        return;
+    }
+
+    // (0,0) and (0,1) both collapse to singleton {1} and conflict as peers.
+    CU_ASSERT_FALSE(hpp_candidate_state_propagate_singles(&state));
+
+    hpp_candidate_state_destroy(&state);
+    destroy_board(&board);
+}
+
 int main(void)
 {
     if (CU_initialize_registry() != CUE_SUCCESS)
@@ -405,7 +448,10 @@ int main(void)
                     test_candidate_propagation_detects_zero_candidate_cell) == NULL ||
         CU_add_test(suite,
                     "propagation detects peer elimination contradiction",
-                    test_candidate_propagation_detects_peer_elimination_conflict) == NULL)
+                    test_candidate_propagation_detects_peer_elimination_conflict) == NULL ||
+        CU_add_test(suite,
+                    "AC-3 detects conflicting singleton peers",
+                    test_candidate_ac3_detects_conflicting_singleton_peers) == NULL)
     {
         CU_cleanup_registry();
         return (int)CU_get_error();

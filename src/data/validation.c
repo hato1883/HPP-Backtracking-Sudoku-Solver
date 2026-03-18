@@ -1,20 +1,31 @@
+/**
+ * @file data/validation.c
+ * @brief Bitvector-backed row/column/box constraint operations.
+ */
+
 #include "data/validation.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-// Number of uint8_t values needed to store 256 bits (256 / 8 = 32)
-#define BITS_PER_VALUE 256
-#define BYTES_PER_BITVECTOR (BITS_PER_VALUE / 8)
+/* =========================================================================
+ * Internal Constants and Helpers
+ * ========================================================================= */
 
-// Get the byte index and bit offset for a value in a bitvector
+enum
+{
+    HPP_VALIDATION_VALUE_COUNT = UINT8_MAX + 1U,
+    HPP_VALIDATION_BYTE_COUNT  = HPP_VALIDATION_VALUE_COUNT / CHAR_BIT,
+};
+
+// Convert a value index into (byte, bit) coordinates.
 static void hpp_bit_position(size_t value, size_t* byte_idx, uint8_t* bit_offset)
 {
-    *byte_idx   = value / 8;
-    *bit_offset = value % 8;
+    *byte_idx   = value / CHAR_BIT;
+    *bit_offset = (uint8_t)(value % CHAR_BIT);
 }
 
-// Get the box index for a given row and column
+// Compute sub-grid index from row/column coordinates.
 static size_t hpp_get_box_index(size_t row, size_t col, size_t block_length)
 {
     return ((row / block_length) * block_length) + (col / block_length);
@@ -215,7 +226,7 @@ bool hpp_validation_constraints_init_from_board(hpp_validation_constraints* cons
     return true;
 }
 
-// Helper to set a bit in a bitvector
+// Set one value bit in a bitvector.
 static inline void hpp_set_bit(uint8_t* bitvector, size_t value)
 {
     size_t  byte_idx   = 0;
@@ -224,7 +235,7 @@ static inline void hpp_set_bit(uint8_t* bitvector, size_t value)
     bitvector[byte_idx] |= (1U << bit_offset);
 }
 
-// Helper to clear a bit in a bitvector
+// Clear one value bit in a bitvector.
 static inline void hpp_clear_bit(uint8_t* bitvector, size_t value)
 {
     size_t  byte_idx   = 0;
@@ -233,7 +244,7 @@ static inline void hpp_clear_bit(uint8_t* bitvector, size_t value)
     bitvector[byte_idx] &= ~(1U << bit_offset);
 }
 
-// Helper to check if a bit is set in a bitvector
+// Test one value bit in a bitvector.
 static inline bool hpp_test_bit(const uint8_t* bitvector, size_t value)
 {
     size_t  byte_idx   = 0;
@@ -331,7 +342,7 @@ bool hpp_validation_can_place_value(const hpp_validation_constraints* constraint
                                     size_t                            col,
                                     size_t                            value)
 {
-    // Early termination on first conflict
+    // Stop at first detected conflict.
     if (hpp_validation_row_has_value(constraints, row, value))
     {
         return false;
