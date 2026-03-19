@@ -1,5 +1,6 @@
 #include "data/board.h"
 #include "solver/solver.h"
+#include "test_helpers.h"
 
 #include <CUnit/Basic.h>
 #include <CUnit/CUnit.h>
@@ -27,45 +28,26 @@ static void assert_board_matches(const hpp_board* board, const hpp_cell* expecte
     }
 }
 
+// Verify that the solver correctly solves a known 4×4 puzzle using backtracking
 static void test_backtracking_solver_solves_known_4x4_puzzle(void)
 {
+    // clang-format off
     const hpp_cell puzzle_cells[] = {
-        1,
-        0,
-        3,
-        0,
-        0,
-        4,
-        0,
-        2,
-        2,
-        0,
-        4,
-        0,
-        0,
-        3,
-        0,
-        1,
+            1, 0, 3, 0,
+            0, 4, 0, 2,
+            2, 0, 4, 0,
+            0, 3, 0, 1,
     };
+    // clang-format on
 
+    // clang-format off
     const hpp_cell expected_solution[] = {
-        1,
-        2,
-        3,
-        4,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 4,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(puzzle_cells, 4);
     if (board == NULL)
@@ -93,26 +75,17 @@ static void test_backtracking_solver_solves_known_4x4_puzzle(void)
     destroy_board(&board);
 }
 
+// Verify that the solver rejects invalid initial boards with duplicate values
 static void test_backtracking_solver_rejects_invalid_initial_board(void)
 {
+    // clang-format off
     const hpp_cell invalid_board[] = {
-        1,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+            1, 1, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(invalid_board, 4);
     if (board == NULL)
@@ -128,26 +101,17 @@ static void test_backtracking_solver_rejects_invalid_initial_board(void)
     destroy_board(&board);
 }
 
+// Verify that the solver correctly solves a puzzle with multiple worker threads
 static void test_backtracking_solver_solves_known_4x4_with_parallel_tasks(void)
 {
+    // clang-format off
     const hpp_cell puzzle_cells[] = {
-        1,
-        0,
-        3,
-        0,
-        0,
-        4,
-        0,
-        2,
-        2,
-        0,
-        4,
-        0,
-        0,
-        3,
-        0,
-        1,
+            1, 0, 3, 0,
+            0, 4, 0, 2,
+            2, 0, 4, 0,
+            0, 3, 0, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(puzzle_cells, 4);
     if (board == NULL)
@@ -178,45 +142,26 @@ static void test_backtracking_solver_solves_known_4x4_with_parallel_tasks(void)
     destroy_board(&board);
 }
 
+// Verify that single candidate propagation optimizes search space during solving
 static void test_backtracking_solver_solves_with_single_candidate_propagation(void)
 {
+    // clang-format off
     const hpp_cell puzzle_cells[] = {
-        1,
-        0,
-        3,
-        0,
-        0,
-        4,
-        0,
-        2,
-        2,
-        0,
-        4,
-        0,
-        0,
-        3,
-        0,
-        1,
+            1, 0, 3, 0,
+            0, 4, 0, 2,
+            2, 0, 4, 0,
+            0, 3, 0, 1,
     };
+    // clang-format on
 
+    // clang-format off
     const hpp_cell expected_solution[] = {
-        1,
-        2,
-        3,
-        4,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 4,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(puzzle_cells, 4);
     if (board == NULL)
@@ -250,6 +195,8 @@ int main(void)
     {
         return (int)CU_get_error();
     }
+
+    hpp_test_disable_logging();
 
     CU_pSuite suite = CU_add_suite("Backtracking Solver", NULL, NULL);
     if (suite == NULL)

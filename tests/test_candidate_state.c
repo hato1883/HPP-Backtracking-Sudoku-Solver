@@ -1,5 +1,6 @@
 #include "data/board.h"
 #include "solver/candidate.h"
+#include "test_helpers.h"
 
 #include <CUnit/Basic.h>
 #include <CUnit/CUnit.h>
@@ -26,26 +27,17 @@ static void assert_board_matches(const hpp_board* board, const hpp_cell* expecte
     }
 }
 
+// Verify that candidate state initialization rejects invalid or conflicting boards
 static void test_candidate_init_rejects_invalid_board(void)
 {
+    // clang-format off
     const hpp_cell invalid_cells[] = {
-        1,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+            1, 1, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(invalid_cells, 4);
     if (board == NULL)
@@ -64,6 +56,7 @@ static void test_candidate_init_rejects_invalid_board(void)
     destroy_board(&board);
 }
 
+// Verify that candidate assignment rejects values conflicting with constraints
 static void test_candidate_assign_rejects_row_conflict(void)
 {
     hpp_board* board = create_board(4);
@@ -89,26 +82,17 @@ static void test_candidate_assign_rejects_row_conflict(void)
     destroy_board(&board);
 }
 
+// Verify that cloned candidate states are independent copies
 static void test_candidate_clone_is_independent(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        1,
-        2,
-        3,
-        0,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 0,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -137,45 +121,26 @@ static void test_candidate_clone_is_independent(void)
     destroy_board(&board);
 }
 
+// Verify that single value propagation completes when all cells are determined
 static void test_candidate_propagates_singles_to_completion(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        1,
-        2,
-        3,
-        0,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 0,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
+    // clang-format off
     const hpp_cell expected[] = {
-        1,
-        2,
-        3,
-        4,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 4,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -200,26 +165,17 @@ static void test_candidate_propagates_singles_to_completion(void)
     destroy_board(&board);
 }
 
+// Verify that hidden single propagation finds values only possible in one cell
 static void test_candidate_propagates_hidden_single(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        1,
-        0,
-        0,
-        4,
-        0,
-        4,
-        0,
-        0,
-        0,
-        0,
-        4,
-        0,
-        4,
-        0,
-        0,
-        1,
+            1, 0, 0, 4,
+            0, 4, 0, 0,
+            0, 0, 4, 0,
+            4, 0, 0, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -243,26 +199,17 @@ static void test_candidate_propagates_hidden_single(void)
     destroy_board(&board);
 }
 
+// Verify that branching detects conflicts during candidate state exploration
 static void test_candidate_build_branch_detects_conflict(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        1,
-        2,
-        3,
-        0,
-        0,
-        0,
-        0,
-        4,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+            1, 2, 3, 0,
+            0, 0, 0, 4,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -287,26 +234,17 @@ static void test_candidate_build_branch_detects_conflict(void)
     destroy_board(&board);
 }
 
+// Verify that propagation detects contradiction when a cell has no valid candidates
 static void test_candidate_propagation_detects_zero_candidate_cell(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        0,
-        2,
-        3,
-        4,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+            0, 2, 3, 4,
+            1, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -329,26 +267,17 @@ static void test_candidate_propagation_detects_zero_candidate_cell(void)
     destroy_board(&board);
 }
 
+// Verify that propagation detects conflicts from peer value elimination
 static void test_candidate_propagation_detects_peer_elimination_conflict(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        0,
-        0,
-        3,
-        4,
-        2,
-        3,
-        0,
-        0,
-        3,
-        0,
-        0,
-        0,
-        4,
-        2,
-        0,
-        0,
+            0, 0, 3, 4,
+            2, 3, 0, 0,
+            3, 0, 0, 0,
+            4, 2, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -371,26 +300,17 @@ static void test_candidate_propagation_detects_peer_elimination_conflict(void)
     destroy_board(&board);
 }
 
+// Verify that AC-3 detects conflicts when peers reduce to incompatible values
 static void test_candidate_ac3_detects_conflicting_singleton_peers(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        0,
-        0,
-        3,
-        4,
-        2,
-        3,
-        1,
-        0,
-        3,
-        2,
-        0,
-        0,
-        4,
-        0,
-        0,
-        0,
+            0, 0, 3, 4,
+            2, 3, 1, 0,
+            3, 2, 0, 0,
+            4, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -420,6 +340,8 @@ int main(void)
     {
         return (int)CU_get_error();
     }
+
+    hpp_test_disable_logging();
 
     CU_pSuite suite = CU_add_suite("Candidate State", NULL, NULL);
     if (suite == NULL)
