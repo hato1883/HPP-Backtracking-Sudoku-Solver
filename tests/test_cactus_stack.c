@@ -1,5 +1,6 @@
 #include "data/board.h"
 #include "data/cactus_stack.h"
+#include "test_helpers.h"
 
 #include <CUnit/Basic.h>
 #include <CUnit/CUnit.h>
@@ -18,6 +19,7 @@ static hpp_board* create_board_from_cells(const hpp_cell* cells, size_t side_len
     return board;
 }
 
+// Verify that pushing root to cactus stack initializes top pointer and depth
 static void test_cactus_push_root_sets_top_and_depth(void)
 {
     hpp_board* board = create_board(4);
@@ -44,26 +46,17 @@ static void test_cactus_push_root_sets_top_and_depth(void)
     destroy_board(&board);
 }
 
+// Verify that cactus stack cloning, committing changes, and popping works correctly
 static void test_cactus_clone_commit_and_pop(void)
 {
+    // clang-format off
     const hpp_cell cells[] = {
-        1,
-        2,
-        3,
-        0,
-        3,
-        4,
-        1,
-        2,
-        2,
-        1,
-        4,
-        3,
-        4,
-        3,
-        2,
-        1,
+            1, 2, 3, 0,
+            3, 4, 1, 2,
+            2, 1, 4, 3,
+            4, 3, 2, 1,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(cells, 4);
     if (board == NULL)
@@ -98,6 +91,7 @@ static void test_cactus_clone_commit_and_pop(void)
     destroy_board(&board);
 }
 
+// Verify that cactus stack operations fail gracefully when root is not initialized
 static void test_cactus_operations_fail_without_root(void)
 {
     hpp_cactus_stack stack = {0};
@@ -110,26 +104,17 @@ static void test_cactus_operations_fail_without_root(void)
     CU_ASSERT_EQUAL(hpp_cactus_stack_depth(&stack), 0);
 }
 
+// Verify that pushing an invalid board as root fails appropriately
 static void test_cactus_rejects_invalid_root_board(void)
 {
+    // clang-format off
     const hpp_cell invalid_cells[] = {
-        1,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+            1, 1, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+            0, 0, 0, 0,
     };
+    // clang-format on
 
     hpp_board* board = create_board_from_cells(invalid_cells, 4);
     if (board == NULL)
@@ -156,6 +141,8 @@ int main(void)
     {
         return (int)CU_get_error();
     }
+
+    hpp_test_disable_logging();
 
     CU_pSuite suite = CU_add_suite("Cactus Stack", NULL, NULL);
     if (suite == NULL)
