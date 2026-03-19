@@ -11,7 +11,7 @@
 #   make profile      -> run callgrind profiling and open KCachegrind
 # ============================================================
 
-CC = clang
+CC = gcc
 
 # Set DEBUG=1 for debug build, otherwise release build is used.
 # Example: make DEBUG=1
@@ -81,7 +81,7 @@ TEST_OBJ := $(filter-out $(TARGET_DIR)/obj/main.o, $(OBJ))
 TARGET = $(TARGET_DIR)/bin/sudoku-solver
 COMPILE_DB = compile_commands.json
 
-debug:
+release:
 
 # =========================
 # Build and Run Targets
